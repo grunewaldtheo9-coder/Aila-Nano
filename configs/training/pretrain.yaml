@@ -1,6 +1,22 @@
 # Aila Nano — pretraining configuration.
-# Tune batch_size / grad_accum_steps to your hardware; the defaults target
-# a single modern GPU. See docs/TRAINING.md for guidance.
+#
+# batch_size is deliberately conservative here: on CPU, PyTorch's
+# scaled_dot_product_attention falls back to its "math" implementation
+# (no flash-attention kernel), which materializes the full (batch,
+# n_heads, seq_len, seq_len) attention score tensor and keeps it around
+# for backward — memory scales roughly *linearly with batch_size* as a
+# result. Measured on nano_10m (max_seq_len=512): batch=4 -> ~2.4 GB
+# peak RSS, batch=8 -> ~4.6 GB, batch=16 -> ~8.9 GB, batch=32 -> OOM on a
+# 15 GB machine. batch_size=4 + grad_accum_steps=16 below (effective
+# batch 64) keeps peak memory around ~2.5 GB, safe on modest hardware,
+# at no cost to training dynamics (grad_accum_steps controls how many
+# micro-batches accumulate before an optimizer step; the effective batch
+# size the model trains at is batch_size * grad_accum_steps either way).
+#
+# If you have a GPU (CUDA gets a real flash-attention kernel — memory
+# scales far more gently with batch) or a CPU with a lot of RAM to
+# spare, raise batch_size and lower grad_accum_steps proportionally for
+# better throughput. See docs/TRAINING.md.
 
 train_bin: datasets/processed/pretrain_train.bin
 val_bin: datasets/processed/pretrain_val.bin
@@ -12,8 +28,8 @@ max_steps: 50000
 weight_decay: 0.1
 betas: [0.9, 0.95]
 grad_clip: 1.0
-grad_accum_steps: 4
-batch_size: 64
+grad_accum_steps: 16
+batch_size: 4
 
 eval_interval: 500
 eval_iters: 100

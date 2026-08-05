@@ -32,7 +32,12 @@ python datasets/scripts/download_pretrain_data.py --out-dir datasets/raw
 ```
 
 Downloads, cleans, and deduplicates TinyStories + Wikitext-103 (see
-[`datasets/README.md`](../datasets/README.md) for why these two). Swap in
+[`datasets/README.md`](../datasets/README.md) for why these two).
+Near-duplicate detection (`datasets/scripts/dedupe.py::near_dedupe`) is
+O(n²) and will effectively hang on a large corpus, so it's automatically
+skipped (exact-duplicate removal still runs) once a source has more than
+`--max-near-dedupe-docs` (default 20,000) documents — pass
+`--force-near-dedupe` to run it anyway if you're willing to wait. Swap in
 your own corpus by pointing `prepare_pretrain.py` (next step) at any
 UTF-8 text file(s) instead — one document per paragraph (blank-line
 separated) works best, since the script inserts `<s>`/`</s>` at document
@@ -63,7 +68,16 @@ Key knobs in `configs/training/pretrain.yaml` (see
 
 - `batch_size` / `grad_accum_steps` — effective batch size is their
   product; raise `grad_accum_steps` instead of `batch_size` if you hit an
-  out-of-memory error.
+  out-of-memory error. **On CPU this matters more than it sounds**: without
+  a flash-attention kernel, PyTorch's CPU attention keeps the full
+  `(batch, heads, seq_len, seq_len)` score tensor around for backward, so
+  memory scales roughly linearly with `batch_size`. Measured on
+  `nano_10m` (`max_seq_len=512`): batch 4 → ~2.4 GB peak RSS, batch 8 →
+  ~4.6 GB, batch 16 → ~8.9 GB, batch 32 → OOM on a 15 GB machine. The
+  shipped default (`batch_size=4`, `grad_accum_steps=16`, effective batch
+  64) targets ~2.5 GB peak, safe on modest hardware; raise `batch_size`
+  and lower `grad_accum_steps` proportionally if you have RAM (or a GPU)
+  to spare.
 - `max_steps` / `warmup_steps` — the cosine schedule decays from `max_lr`
   to `min_lr` over `[warmup_steps, max_steps]`.
 - `eval_interval` / `early_stopping_patience` — training stops early if

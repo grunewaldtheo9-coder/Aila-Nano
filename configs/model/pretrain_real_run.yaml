@@ -1,0 +1,17 @@
+# Same architecture as configs/model/nano_10m.yaml (still ~10.9M
+# parameters — max_seq_len doesn't affect parameter count) but with a
+# 256-token context instead of 512, to fit a real training run in a
+# practical amount of CPU time. See configs/training/pretrain_real_run.yaml.
+vocab_size: 8192
+max_seq_len: 256
+n_layers: 12
+d_model: 256
+n_heads: 8
+n_kv_heads: 4
+mlp_hidden_mult: 2.72
+dropout: 0.1
+norm_eps: 1.0e-5
+rope_theta: 10000.0
+initializer_range: 0.02
+tie_embeddings: true
+bias: false

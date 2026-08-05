@@ -1,0 +1,34 @@
+# A one-off config for a real, time-bounded pretraining run on CPU.
+# Measured throughput on this machine: ~1100 tok/s at batch=16, seq=256
+# (vs. ~530 tok/s at the full seq=512 spec — CPU attention has no
+# flash-attention kernel, so halving sequence length roughly doubles
+# throughput). Traded a shorter context window (256 vs. the nano_10m
+# spec's 512) for meaningfully more optimizer steps within the same
+# wall-clock budget — see docs/TRAINING.md for the full reasoning and
+# how to run the full 512-context version if you have more time or a GPU.
+
+train_bin: datasets/processed/pretrain_train.bin
+val_bin: datasets/processed/pretrain_val.bin
+
+max_lr: 5.0e-4
+min_lr: 5.0e-5
+warmup_steps: 40
+max_steps: 650
+weight_decay: 0.1
+betas: [0.9, 0.95]
+grad_clip: 1.0
+grad_accum_steps: 4
+batch_size: 16
+
+eval_interval: 50
+eval_iters: 20
+log_interval: 10
+checkpoint_dir: checkpoints/pretrain_real
+keep_last_n_checkpoints: 2
+early_stopping_patience: null
+
+device: cpu
+amp: false
+seed: 1337
+tensorboard_dir: runs/pretrain_real
+num_workers: 0
