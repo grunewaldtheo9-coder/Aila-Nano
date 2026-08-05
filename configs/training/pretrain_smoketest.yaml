@@ -1,0 +1,30 @@
+# Tiny/fast configuration used by tests and CI to exercise the full
+# training loop (data -> forward -> backward -> checkpoint -> resume ->
+# eval -> early stopping) in a few seconds on CPU. Not meant to produce a
+# useful model — see configs/training/pretrain.yaml for real runs.
+
+train_bin: datasets/processed/pretrain_train.bin
+val_bin: datasets/processed/pretrain_val.bin
+
+max_lr: 1.0e-3
+min_lr: 1.0e-4
+warmup_steps: 5
+max_steps: 40
+weight_decay: 0.01
+betas: [0.9, 0.95]
+grad_clip: 1.0
+grad_accum_steps: 1
+batch_size: 4
+
+eval_interval: 10
+eval_iters: 5
+log_interval: 5
+checkpoint_dir: checkpoints/smoketest
+keep_last_n_checkpoints: 2
+early_stopping_patience: null
+
+device: cpu
+amp: false
+seed: 1337
+tensorboard_dir: runs/smoketest
+num_workers: 0

@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aila-nano"
+version = "0.1.0"
+description = "Aila Nano — a from-scratch ~10.9M parameter decoder-only language model, built and owned by Aila Company Solutions."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Theo Grunewald Hames" },
+    { name = "Guilherme Grunewald Benkendorf" },
+]
+keywords = ["language-model", "transformer", "pytorch", "slm", "nlp"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Aila Nano is intentionally organized as a set of top-level, independently
+# importable packages (tokenizer/, model/, training/, ...) rather than a
+# single nested package. This mirrors the project's module boundaries 1:1
+# and keeps `import model`, `import tokenizer`, etc. working from the repo
+# root without extra indirection.
+[tool.setuptools]
+packages = [
+    "tokenizer",
+    "model",
+    "training",
+    "finetuning",
+    "memory",
+    "vectordb",
+    "agents",
+    "web",
+    "web.backend",
+    "web.backend.app",
+    "web.backend.app.routers",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# A pragmatic, non-exhaustive rule set: correctness (F, E9), style (E4/E7),
+# import hygiene (I), and modern-Python upgrades (UP). Deliberately not
+# opting into flake8-bugbear's B008, which flags FastAPI's idiomatic
+# `Depends(...)` default-argument dependency-injection pattern used
+# throughout web/backend/app/routers/ — that's correct FastAPI code, not a
+# bug.
+select = ["E4", "E7", "E9", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true

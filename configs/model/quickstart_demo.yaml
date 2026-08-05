@@ -1,0 +1,19 @@
+# A tiny model config sized to actually fit the bundled
+# datasets/sample/pretrain_sample.txt corpus (a few dozen lines — nowhere
+# near enough text for the real ~10.9M-parameter nano_10m config's
+# 512-token context and 8192 vocab). Used only by the README quickstart /
+# pipeline smoke test. For real training, use configs/model/nano_10m.yaml
+# with a real corpus — see docs/TRAINING.md.
+vocab_size: 512
+max_seq_len: 128
+n_layers: 2
+d_model: 64
+n_heads: 4
+n_kv_heads: 2
+mlp_hidden_mult: 2.0
+dropout: 0.0
+norm_eps: 1.0e-5
+rope_theta: 10000.0
+initializer_range: 0.02
+tie_embeddings: true
+bias: false

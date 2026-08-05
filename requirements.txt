@@ -1,0 +1,24 @@
+# Aila Nano — core runtime dependencies
+# PyTorch is installed separately (CPU or CUDA build) — see docs/INSTALL.md
+# e.g. CPU:  pip install torch --index-url https://download.pytorch.org/whl/cpu
+#      CUDA: pip install torch --index-url https://download.pytorch.org/whl/cu121
+torch>=2.2
+
+# Tokenizer
+sentencepiece>=0.2.0
+
+# Vector database / semantic memory
+faiss-cpu>=1.8.0
+numpy>=1.26,<2.0
+
+# API / web backend
+fastapi>=0.111
+uvicorn[standard]>=0.29
+pydantic>=2.6
+python-multipart>=0.0.9
+sse-starlette>=2.1
+
+# Config / utilities
+pyyaml>=6.0
+tqdm>=4.66
+tensorboard>=2.16

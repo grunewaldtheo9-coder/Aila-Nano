@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.git/
+runs/
+checkpoints/**/*.pt
+datasets/raw/
+datasets/processed/
+datasets/cache/
+web/frontend/node_modules/
+web/frontend/.next/
+*.md

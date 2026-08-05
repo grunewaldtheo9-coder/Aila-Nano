@@ -1,0 +1,60 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# --- ML artifacts ---
+checkpoints/**/*.pt
+checkpoints/**/*.pth
+checkpoints/**/*.ckpt
+!checkpoints/.gitkeep
+runs/
+tensorboard/
+*.log
+
+# --- Tokenizer artifacts ---
+tokenizer/artifacts/*.model
+tokenizer/artifacts/*.vocab
+!tokenizer/artifacts/.gitkeep
+
+# --- Datasets (raw/processed data is fetched, not committed) ---
+datasets/raw/
+datasets/processed/
+datasets/cache/
+!datasets/sample/
+!datasets/aila_knowledge/
+
+# --- Vector DB / memory ---
+vectordb/index/*.faiss
+vectordb/index/*.pkl
+!vectordb/index/.gitkeep
+memory/data/*.db
+memory/data/*.sqlite3
+!memory/data/.gitkeep
+
+# --- Web / Next.js ---
+web/frontend/node_modules/
+web/frontend/.next/
+web/frontend/out/
+web/frontend/.env*.local
+
+# --- Env / secrets ---
+.env
+.env.*
+!.env.example
+!.env.local.example
+!web/frontend/.env.local.example
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/
+*.swp

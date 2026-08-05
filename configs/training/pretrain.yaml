@@ -1,0 +1,29 @@
+# Aila Nano — pretraining configuration.
+# Tune batch_size / grad_accum_steps to your hardware; the defaults target
+# a single modern GPU. See docs/TRAINING.md for guidance.
+
+train_bin: datasets/processed/pretrain_train.bin
+val_bin: datasets/processed/pretrain_val.bin
+
+max_lr: 3.0e-4
+min_lr: 3.0e-5
+warmup_steps: 1000
+max_steps: 50000
+weight_decay: 0.1
+betas: [0.9, 0.95]
+grad_clip: 1.0
+grad_accum_steps: 4
+batch_size: 64
+
+eval_interval: 500
+eval_iters: 100
+log_interval: 20
+checkpoint_dir: checkpoints/pretrain
+keep_last_n_checkpoints: 3
+early_stopping_patience: 10
+
+device: auto
+amp: true
+seed: 1337
+tensorboard_dir: runs/pretrain
+num_workers: 2

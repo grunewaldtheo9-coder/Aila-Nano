@@ -1,0 +1,7 @@
+# Extra dependencies for datasets/scripts/download_pretrain_data.py.
+# Not required to run/train Aila Nano itself — only to fetch and prepare
+# public pretraining corpora.
+-r requirements.txt
+
+datasets>=2.19
+huggingface_hub>=0.23

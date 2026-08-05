@@ -1,0 +1,14 @@
+# Aila Nano — instruction fine-tuning configuration.
+epochs: 3
+batch_size: 8
+max_lr: 5.0e-5
+min_lr: 5.0e-6
+warmup_ratio: 0.03
+weight_decay: 0.01
+betas: [0.9, 0.95]
+grad_clip: 1.0
+val_fraction: 0.1
+log_interval: 10
+out_dir: checkpoints/finetune
+device: auto
+seed: 1337

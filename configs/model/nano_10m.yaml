@@ -1,0 +1,14 @@
+# Aila Nano — ~10.9M parameter architecture (see docs/MODEL_CARD.md)
+vocab_size: 8192
+max_seq_len: 512
+n_layers: 12
+d_model: 256
+n_heads: 8
+n_kv_heads: 4
+mlp_hidden_mult: 2.72
+dropout: 0.1
+norm_eps: 1.0e-5
+rope_theta: 10000.0
+initializer_range: 0.02
+tie_embeddings: true
+bias: false
