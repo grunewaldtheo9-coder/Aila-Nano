@@ -11,11 +11,12 @@ datasets/      Download/clean/dedupe scripts, Aila knowledge, samples
 vectordb/      FAISS index, Aila-Nano-powered embedder, document store
 memory/        Conversation/long-term/semantic memory, ranking
 agents/        Persona classes + registry, all sharing one model
-web/backend/   FastAPI app
-web/frontend/  Next.js app
+engine/        Interface-independent AI core (AilaEngine, EngineSettings)
+tools/         Extension point for future capabilities (empty registry today)
+chat.py        The terminal interface — the only thing you run
 configs/       YAML configs for model/training/finetuning
 scripts/       Standalone utility scripts
-tests/         pytest suite (one file per module, plus test_api.py)
+tests/         pytest suite (one file per module)
 docs/          You are here
 checkpoints/   Trained model checkpoints (gitignored; runtime output)
 ```
@@ -28,13 +29,31 @@ described in the project's design brief directly onto the filesystem.
 shadowing the real `faiss` PyPI package on `sys.path`, since the repo
 root is importable.
 
+There is no web/HTTP layer. `engine/` is the interface-independent AI
+core; `chat.py` is the terminal interface built on it. A future
+GUI/mobile/web interface would be a new, equally thin file importing
+`engine.AilaEngine` — see `docs/ARCHITECTURE.md`'s roadmap section and
+`docs/API.md` for that boundary.
+
 ## Setting up for development
+
+**Linux/macOS:**
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements-dev.txt
 ```
+
+**Windows:**
+
+```bat
+python -m venv .venv && .venv\Scripts\activate
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements-dev.txt
+```
+
+Supported/tested on Python 3.10 through 3.13.
 
 ## Running tests
 
@@ -45,12 +64,13 @@ pytest tests/test_model.py -v                     # a single module
 ```
 
 The suite trains a real (tiny) tokenizer and instantiates a real (tiny)
-model in `tests/conftest.py` — nothing is mocked. It runs in under 30
+model in `tests/conftest.py` — nothing is mocked. It runs in a few
 seconds on CPU and exercises every module: tokenizer round-tripping,
 model forward/KV-cache-correctness/generation, a full training loop
 (including checkpoint save/resume), fine-tuning with loss masking,
-vector search, memory ranking, all four agents, and every API endpoint
-via `fastapi.testclient.TestClient`.
+vector search, memory ranking, all four agents (including knowledge-base
+retrieval), the `AilaEngine` API end to end, and `chat.py`'s command
+handling.
 
 ## Linting
 
@@ -58,8 +78,6 @@ via `fastapi.testclient.TestClient`.
 ruff check .          # see [tool.ruff] in pyproject.toml for the rule set
 ruff check . --fix    # auto-fix what's fixable
 ```
-
-`web/frontend`: `npm run lint` (Next.js's built-in ESLint config).
 
 ## Verifying the parameter budget
 
@@ -81,12 +99,11 @@ python scripts/count_params.py --n-layers 10 --d-model 256
 1. Create `agents/<name>_assistant.py` subclassing `agents.base.Agent`
    with a distinct `system_prompt` and (optionally) `default_settings`.
 2. Register it in `agents/registry.py::AGENT_REGISTRY`.
-3. Add a display label/icon in `web/frontend/lib/types.ts`
-   (`AGENT_LABELS`, `AGENT_ICONS`) if it should show nicely in the UI.
-4. Add a test in `tests/test_agents.py` following the existing pattern.
+3. Add a test in `tests/test_agents.py` following the existing pattern.
 
 No model or training changes are needed — every agent shares the same
-underlying weights.
+underlying weights. `chat.py`'s `/agents` and `/agent <name>` commands
+pick up new personas automatically via `engine.available_agents()`.
 
 ## Adding a new dataset source
 
@@ -94,6 +111,14 @@ See [`datasets/README.md`](../datasets/README.md) and the docstring at
 the top of `datasets/scripts/download_pretrain_data.py` for the
 selection criteria (small-model suitability, license clarity, quality)
 a replacement source should be judged against.
+
+## Adding a future capability (search, file reading, tool calling, ...)
+
+See the roadmap section of `docs/ARCHITECTURE.md`. The intended shape is
+a `tools.base.Tool` subclass registered in a `tools.registry.ToolRegistry`
+— nothing is wired into generation yet, so building one today means
+implementing the tool and deciding how/when an interface (or eventually
+the model itself, once function-calling training exists) invokes it.
 
 ## Commit / contribution conventions
 

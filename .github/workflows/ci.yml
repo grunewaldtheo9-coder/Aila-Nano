@@ -8,17 +8,20 @@ on:
 jobs:
   python-tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
           cache: "pip"
 
       - name: Install dependencies
         run: |
-          pip install --index-url https://download.pytorch.org/whl/cpu torch>=2.2
+          pip install --index-url https://download.pytorch.org/whl/cpu "torch>=2.6"
           pip install -r requirements-dev.txt
 
       - name: Lint (ruff)
@@ -30,25 +33,5 @@ jobs:
       - name: Verify model parameter budget
         run: python scripts/count_params.py
 
-  frontend-build:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web/frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: web/frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Build
-        run: npm run build
+      - name: Verify chat.py imports and starts cleanly
+        run: python -c "import chat; print('chat.py imports OK')"

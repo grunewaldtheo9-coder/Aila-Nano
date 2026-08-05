@@ -3,45 +3,47 @@
 ## System overview
 
 ```
-                         ┌─────────────────────────┐
-                         │   web/frontend (Next.js) │
-                         │   chat UI, dark mode,    │
-                         │   history, uploads       │
-                         └────────────┬─────────────┘
-                                      │ HTTP / SSE
-                         ┌────────────▼─────────────┐
-                         │  web/backend (FastAPI)    │
-                         │  routers: chat, agents,   │
-                         │  memory, upload, health   │
-                         └──┬───────────┬────────────┘
-                             │           │
-              ┌──────────────▼──┐   ┌────▼─────────────┐
-              │  agents/         │   │  memory/          │
-              │  (persona +      │◄──┤  conversation +   │
-              │   prompt build)  │   │  long-term +      │
-              └───────┬──────────┘   │  semantic memory  │
-                      │              └────────┬──────────┘
-                      │                       │
-              ┌───────▼───────────────────────▼──────────┐
-              │        model/ (AilaNanoGPT) +             │
-              │        tokenizer/ (AilaTokenizer)         │
-              └───────────────────┬────────────────────────┘
-                                  │
-                    ┌─────────────▼─────────────┐
-                    │  vectordb/ (FAISS +        │
-                    │  Aila Nano's own embedder)  │
-                    └─────────────────────────────┘
+                    ┌───────────────────────────────┐
+                    │  chat.py (terminal interface)   │
+                    │  banner, REPL loop, /commands   │
+                    └────────────────┬─────────────────┘
+                                     │ Python calls, in-process
+                    ┌────────────────▼─────────────────┐
+                    │  engine.AilaEngine                │
+                    │  (interface-independent AI core)  │
+                    └──┬───────────┬──────────┬─────────┘
+                        │           │          │
+              ┌──────────▼──┐  ┌─────▼─────┐  ┌▼──────────┐
+              │  agents/     │  │  memory/  │  │ vectordb/ │
+              │  (persona +  │◄─┤ conv. +   │  │ FAISS +   │
+              │  prompt build│  │ long-term │  │ Aila's own│
+              │  + tools)    │  │ + semantic│  │ embeddings│
+              └──────┬───────┘  └───────────┘  └───────────┘
+                     │
+        ┌─────────────▼─────────────────────────────┐
+        │   model/ (AilaNanoGPT) + tokenizer/         │
+        │   (AilaTokenizer)                            │
+        └───────────────────────────────────────────────┘
 
-training/ and finetuning/ produce the checkpoints that model/ + tokenizer/
-load; datasets/ produces the data training/ and finetuning/ consume.
+training/ and finetuning/ produce the checkpoints that engine/ loads;
+datasets/ produces the data training/ and finetuning/ consume.
 ```
 
-Every layer above the model is built to share **one** `AilaNanoGPT`
-instance: the four agent personas differ only in system prompt and
-sampling defaults (`agents/base.py`), and even the vector embeddings used
-for semantic search and memory retrieval come from the same model's own
-hidden states (`vectordb/embedder.py`) rather than a separate embedding
-model or external API.
+**The AI engine is completely independent of any interface.**
+`engine.AilaEngine` owns the tokenizer, model, memory, knowledge index,
+and agents — it has no idea `chat.py` (a terminal loop) exists. `chat.py`
+is a thin, disposable shell: it prints a banner, reads lines, and calls
+`engine.chat_stream(...)`. A future desktop GUI, mobile app, or web
+service would construct the same `AilaEngine` and call the same methods
+(`chat`, `chat_stream`, `get_agent`, `learn_file`) — nothing below that
+boundary changes. See `engine/state.py` for the full surface.
+
+Every layer above the model shares **one** `AilaNanoGPT` instance: the
+four agent personas differ only in system prompt and sampling defaults
+(`agents/base.py`), and even the vector embeddings used for semantic
+search and memory retrieval come from the same model's own hidden states
+(`vectordb/embedder.py`) rather than a separate embedding model or
+external API.
 
 ## The model (`model/`)
 
@@ -93,7 +95,8 @@ Autoregressive sampling with an incremental KV cache (numerically
 verified identical to a full non-cached forward pass — see
 `tests/test_model.py::test_kv_cache_matches_full_forward`), temperature,
 top-k, top-p (nucleus), and repetition penalty. `generate_stream()`
-yields one token at a time for the backend's SSE endpoint.
+yields one token at a time — this is what powers `chat.py` printing
+Aila's reply as it's generated instead of waiting for the whole thing.
 
 ## Training (`training/`)
 
@@ -126,7 +129,13 @@ into the chat token layout:
 
 The loss is masked (`label = -100`) everywhere except the assistant's
 response span, so the model is never trained to predict its own prompt.
-`finetuning/finetune.py` supports **continual fine-tuning**: point
+If an example's response can't fit inside `max_seq_len` even after
+front-truncating the prompt, `finetuning/format.py::encode_example`
+drops that example entirely (`finetuning/dataset.py` logs how many were
+skipped) rather than silently training on an all-masked, zero-signal
+example — an earlier version of this truncation logic could produce a
+`nan` loss this way; see `tests/test_finetuning.py` for the regression
+tests. `finetuning/finetune.py` supports **continual fine-tuning**: point
 `--init-checkpoint` at any prior checkpoint — pretrained or already
 fine-tuned — to keep adapting the model as new instruction data arrives.
 
@@ -142,6 +151,9 @@ nano-model deployment realistically indexes; swap in `IndexHNSWFlat` if
 an index grows past roughly a million vectors. `DocumentStore` persists
 text/metadata in SQLite, keyed by the same ids as the FAISS index.
 `SemanticIndex` ties the three together into add/search/delete.
+`vectordb/chunking.py` splits a document's text into overlapping windows
+before indexing — used by `AilaEngine.learn_file` (the terminal's
+`/learn` command).
 
 ## Memory (`memory/`)
 
@@ -163,32 +175,72 @@ can still outrank a recent-but-marginal one.
 
 `memory/manager.py::MemoryManager.build_context()` is the single call
 agents make to get "everything relevant to say next": recent turns +
-top-ranked relevant facts.
+top-ranked relevant facts. Knowledge-base hits (files indexed via
+`/learn`) are looked up separately, directly against `vectordb.SemanticIndex`,
+by `agents/base.py` — see below.
 
 ## Agents (`agents/`)
 
 `Agent` (`agents/base.py`) owns prompt construction (system prompt +
-retrieved memory facts + conversation history + new user turn →
-token ids), generation (via `model.generate`/`generate_stream`), and
-writing the turn back to memory. `GeneralAssistant`,
-`ProgrammingAssistant`, `ResearchAssistant`, and `WritingAssistant`
-subclass it with only a different `system_prompt` and
+retrieved memory facts + retrieved knowledge-base snippets + conversation
+history + new user turn → token ids), generation (via
+`model.generate`/`generate_stream`), and writing the turn back to memory.
+`GeneralAssistant`, `ProgrammingAssistant`, `ResearchAssistant`, and
+`WritingAssistant` subclass it with only a different `system_prompt` and
 `default_settings` (e.g. programming uses low temperature for
-determinism, writing uses high temperature for variety) — **all four
-run the exact same underlying `AilaNanoGPT` weights**.
+determinism, writing uses high temperature for variety) — **all four run
+the exact same underlying `AilaNanoGPT` weights**.
 
-## Web backend (`web/backend/`)
+## The engine (`engine/`)
 
-FastAPI app (`web/backend/app/main.py`) that loads the model, tokenizer,
-and memory/knowledge stores once at startup (`AilaState`, via a lifespan
-handler) and shares them across requests through dependency injection.
-Routers: `/health`, `/chat` (+ `/chat/stream` SSE), `/agents`, `/memory`,
-`/upload` (chunk-and-index a text file into a knowledge base separate
-from personal long-term memory). See [docs/API.md](API.md).
+`AilaEngine` (`engine/state.py`) is the single object that ties
+everything above into something an interface can use: it loads the
+tokenizer and model (falling back to a freshly-initialized, untrained
+model matching the tokenizer's vocab size if no checkpoint exists yet),
+constructs the memory manager and knowledge index, and eagerly
+constructs every registered agent so a misconfigured persona fails fast
+at startup. `EngineSettings` (`engine/config.py`) resolves every path
+(checkpoint, tokenizer, memory/knowledge storage) from `AILA_*`
+environment variables — see `docs/CONFIGURATION.md`.
 
-## Web frontend (`web/frontend/`)
+Loading progress is reported through an `on_progress(msg: str)` callback
+rather than printed directly — `chat.py` passes `print` as that callback
+to produce the `Loading tokenizer... / OK` banner; a future GUI could
+pass a progress-bar update function instead, with zero changes to the
+engine.
 
-Next.js (App Router) + TypeScript + Tailwind CSS. Talks to the backend
-over plain fetch (`lib/api.ts`), including manual SSE parsing for
-streaming (browsers' built-in `EventSource` can't send a POST body, so
-the stream is read and parsed from a `fetch` `ReadableStream`).
+## The terminal interface (`chat.py`)
+
+The *only* thing you run (`python chat.py`). Prints the startup banner,
+constructs one `AilaEngine`, then loops on `input("You: ")`, streaming
+each reply through `engine.chat_stream(...)`. Slash commands
+(`/agents`, `/agent <name>`, `/new`, `/history`, `/remember <text>`,
+`/learn <path>`) are handled by `handle_command()`, a small dispatcher
+that mutates a plain `{"conversation_id": ..., "agent": ...}` dict — kept
+deliberately free of any global state so it's trivially testable (see
+`tests/test_chat.py`).
+
+## Extensibility (`tools/`) — future roadmap
+
+`tools/base.py` defines a minimal `Tool` interface (`name`, `description`,
+`run(**kwargs) -> str`) and `tools/registry.py` a `ToolRegistry` to hold
+them — mirroring `agents/registry.py`'s pattern on purpose, so the two
+feel like one system. **Nothing is registered here yet and nothing calls
+`Tool.run()` automatically** — Aila Nano has no function-calling training
+today. This exists so the following, when built, have one obvious shape
+to implement against instead of each needing ad-hoc integration:
+
+- Internet search (e.g. a Serper API tool)
+- Tool calling / function calling
+- File reading beyond plain text (PDF reader)
+- Python code execution
+- Calendar access
+- Plugins
+- Voice input/output
+- Vision (image understanding)
+- Image generation
+
+Also not yet built, and following the same "engine stays interface-agnostic"
+principle as `chat.py`: a desktop GUI, a mobile app, and a web
+interface — each would be a new, thin caller of `engine.AilaEngine`,
+exactly like `chat.py` is today.

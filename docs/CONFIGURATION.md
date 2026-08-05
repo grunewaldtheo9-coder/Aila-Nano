@@ -55,24 +55,29 @@ pipeline sanity checks.
 | `val_fraction` | Held-out fraction of the instruction data for validation |
 | `out_dir` | Where `epoch_NNN.pt` and `best.pt` are written |
 
-## Backend environment variables (`web/backend/app/deps.py::AilaSettings`)
+## Engine environment variables (`engine/config.py::EngineSettings`)
+
+Read once, at `AilaEngine` construction time (so `chat.py`, or any other
+interface, just needs these set before it starts).
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `AILA_CHECKPOINT` | `checkpoints/finetune/best.pt` | Preferred checkpoint to serve |
+| `AILA_CHECKPOINT` | `checkpoints/finetune/best.pt` | Preferred checkpoint to load |
 | `AILA_FALLBACK_CHECKPOINT` | `checkpoints/pretrain/best.pt` | Used if the above doesn't exist |
 | `AILA_TOKENIZER` | `tokenizer/artifacts/aila_nano.model` | Must match the checkpoint's tokenizer |
 | `AILA_DEVICE` | `auto` | `auto` / `cpu` / `cuda` |
 | `AILA_MEMORY_DB` / `AILA_MEMORY_FAISS` | `memory/data/aila_memory.{db,faiss}` | Conversation + long-term memory storage |
-| `AILA_KNOWLEDGE_DB` / `AILA_KNOWLEDGE_FAISS` | `vectordb/index/knowledge.{db,faiss}` | Uploaded-document knowledge base |
-| `AILA_CORS_ORIGINS` | `http://localhost:3000` | Comma-separated allowed origins |
+| `AILA_KNOWLEDGE_DB` / `AILA_KNOWLEDGE_FAISS` | `vectordb/index/knowledge.{db,faiss}` | `/learn`-ed document knowledge base |
+| `AILA_DEFAULT_AGENT` | `general` | Agent `chat.py` starts with (`/agent <name>` switches at runtime) |
 
-If neither checkpoint path exists, the server logs a warning and serves a
-freshly-initialized, untrained model (vocab size taken from the loaded
-tokenizer) so the API/UI remain explorable before training completes.
+If neither checkpoint path exists, `AilaEngine` logs a warning and serves
+a freshly-initialized, untrained model (vocab size taken from the loaded
+tokenizer) so `chat.py` still runs before training completes.
 
-## Frontend environment variables (`web/frontend/.env.local`)
+Example (PowerShell, Windows):
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend base URL |
+```powershell
+$env:AILA_CHECKPOINT = "checkpoints/finetune/best.pt"
+$env:AILA_TOKENIZER = "tokenizer/artifacts/aila_nano.model"
+python chat.py
+```

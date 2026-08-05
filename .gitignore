@@ -6,6 +6,7 @@ __pycache__/
 build/
 dist/
 .venv/
+.venv*/
 venv/
 .mypy_cache/
 .pytest_cache/
@@ -40,18 +41,10 @@ memory/data/*.db
 memory/data/*.sqlite3
 !memory/data/.gitkeep
 
-# --- Web / Next.js ---
-web/frontend/node_modules/
-web/frontend/.next/
-web/frontend/out/
-web/frontend/.env*.local
-
 # --- Env / secrets ---
 .env
 .env.*
 !.env.example
-!.env.local.example
-!web/frontend/.env.local.example
 
 # --- OS / editor ---
 .DS_Store

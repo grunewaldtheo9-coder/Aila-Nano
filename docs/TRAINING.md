@@ -123,12 +123,12 @@ python -m finetuning.finetune \
     --out-dir checkpoints/finetune_v2
 ```
 
-## 5. Serve
+## 5. Chat with it
 
 ```bash
 AILA_CHECKPOINT=checkpoints/finetune/best.pt \
 AILA_TOKENIZER=tokenizer/artifacts/aila_nano.model \
-uvicorn web.backend.app.main:app --port 8000
+python chat.py
 ```
 
 See [docs/CONFIGURATION.md](CONFIGURATION.md) for all `AILA_*` env vars.

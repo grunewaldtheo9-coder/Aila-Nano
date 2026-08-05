@@ -4,6 +4,7 @@ from agents.base import GenerationSettings
 from agents.registry import AGENT_REGISTRY, get_agent, list_agents
 from memory.manager import MemoryManager
 from vectordb.embedder import AilaEmbedder
+from vectordb.semantic_index import SemanticIndex
 
 
 @pytest.fixture
@@ -67,3 +68,26 @@ def test_respond_stream_yields_text_and_stores_memory(tiny_model, tokenizer, mem
     assert all(isinstance(c, str) for c in chunks)
     history = memory.conversation.get_history("c2")
     assert len(history) == 2
+
+
+def test_knowledge_base_hits_are_surfaced_in_the_prompt(tiny_model, tokenizer, tmp_path):
+    embedder = AilaEmbedder(tiny_model, tokenizer)
+    knowledge = SemanticIndex(
+        embedder, db_path=str(tmp_path / "kb.db"), faiss_path=str(tmp_path / "kb.faiss")
+    )
+    knowledge.add_document("The launch code is nine four two seven.")
+
+    agent = get_agent("general", tiny_model, tokenizer, knowledge=knowledge)
+    prompt = agent.prompt_preview("c1", "What is the launch code?")
+    assert "nine four two seven" in prompt
+    assert "knowledge base" in prompt.lower()
+
+
+def test_empty_knowledge_base_does_not_affect_prompt(tiny_model, tokenizer, tmp_path):
+    embedder = AilaEmbedder(tiny_model, tokenizer)
+    knowledge = SemanticIndex(
+        embedder, db_path=str(tmp_path / "kb.db"), faiss_path=str(tmp_path / "kb.faiss")
+    )
+    agent = get_agent("general", tiny_model, tokenizer, knowledge=knowledge)
+    prompt = agent.prompt_preview("c1", "Hello")
+    assert "knowledge base" not in prompt.lower()

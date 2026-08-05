@@ -15,16 +15,24 @@ Created by **Theo Grunewald Hames** and **Guilherme Grunewald Benkendorf**.
 > company's model. Every component below — tokenizer, architecture,
 > training loop, embeddings — is implemented in this repository.
 
-## Why "Nano"
+## Terminal-first
 
-At ~10.9M parameters, Aila Nano is roughly 1,000x smaller than GPT-2 Small
-class models were once considered "small." That's a deliberate design
-choice, not a limitation to apologize for: it trains in minutes on a
-laptop CPU, fine-tunes in seconds, runs inference without a GPU, and is
-small enough that every architectural decision below can be reasoned
-about and inspected line-by-line rather than taken on faith. See
-[docs/MODEL_CARD.md](docs/MODEL_CARD.md) for what that scale does and
-doesn't make Aila Nano good at.
+Aila Nano runs entirely in one terminal window. No server, no browser, no
+frontend build step:
+
+```bash
+python chat.py
+```
+
+That's it. It loads the tokenizer, model, memory, and agents, and drops
+you into a chat prompt. See [Quickstart](#quickstart) below for the setup
+steps that come before it.
+
+The AI itself (`engine.AilaEngine`) is kept completely independent of
+`chat.py` — the terminal is simply today's interface to it. A future
+desktop app, mobile app, or web service would sit on top of the exact
+same engine with no changes to the model, memory, or agents. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for that boundary.
 
 ## What's in this repository
 
@@ -38,8 +46,9 @@ doesn't make Aila Nano good at.
 | [`vectordb/`](vectordb/) | FAISS-backed semantic search, powered by Aila Nano's own embeddings |
 | [`memory/`](memory/) | Conversation, long-term, and semantic memory with relevance ranking |
 | [`agents/`](agents/) | Four assistant personas sharing one model (General/Programming/Research/Writing) |
-| [`web/backend/`](web/backend/) | FastAPI server: chat (incl. streaming), agents, memory, uploads |
-| [`web/frontend/`](web/frontend/) | Next.js chat UI: dark mode, history, streaming, file upload |
+| [`engine/`](engine/) | The interface-independent AI core — loads everything above, exposes `chat()`/`chat_stream()` |
+| [`tools/`](tools/) | Extension point for future capabilities (search, file reading, plugins, ...) — not yet implemented |
+| [`chat.py`](chat.py) | The terminal chat interface — the only thing you run |
 | [`configs/`](configs/) | YAML configs for the model and training/fine-tuning runs |
 | [`scripts/`](scripts/) | Utility scripts (parameter counting, etc.) |
 | [`tests/`](tests/) | Pytest suite covering every module above |
@@ -48,7 +57,7 @@ doesn't make Aila Nano good at.
 
 ```bash
 # 1. Install
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install torch --index-url https://download.pytorch.org/whl/cpu   # or the cuXXX index for GPU
 pip install -r requirements.txt
 
@@ -86,24 +95,50 @@ python -m finetuning.finetune \
     --tokenizer tokenizer/artifacts/aila_nano_sample.model \
     --data datasets/aila_knowledge/aila_company.jsonl datasets/sample/finetune_sample.jsonl
 
-# 6. Serve it
-uvicorn web.backend.app.main:app --reload --port 8000
-
-# 7. Run the web UI
-cd web/frontend && npm install && npm run dev
+# 6. Talk to it
+AILA_CHECKPOINT=checkpoints/finetune/best.pt \
+AILA_TOKENIZER=tokenizer/artifacts/aila_nano_sample.model \
+python chat.py
 ```
+
+```
+=====================================
+Aila Nano v0.2
+Small Language Model
+Python 3.13
+CPU Mode
+
+Loading tokenizer...
+OK
+Loading model...
+OK
+Loading memory...
+OK
+Loading FAISS...
+OK
+Loading agents...
+OK
+Ready.
+
+You: Hello
+Aila: Hello! How can I help you today?
+```
+
+Type `exit` or `quit` to leave, `/help` to see the rest of the commands
+(switching agents, remembering facts, indexing a file into the knowledge
+base, and more).
 
 Full walkthroughs: [docs/INSTALL.md](docs/INSTALL.md) ·
 [docs/TRAINING.md](docs/TRAINING.md).
 
 ## Documentation
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how the model, training, memory, and serving layers fit together
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how the model, training, memory, and engine layers fit together
 - [docs/MODEL_CARD.md](docs/MODEL_CARD.md) — parameters, intended use, limitations, Aila Company Solutions
 - [docs/TRAINING.md](docs/TRAINING.md) — pretraining and fine-tuning guide
 - [docs/INSTALL.md](docs/INSTALL.md) — installation (CPU/GPU/Docker)
 - [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) — repo layout, testing, contributing
-- [docs/API.md](docs/API.md) — FastAPI backend endpoint reference
+- [docs/API.md](docs/API.md) — `AilaEngine` Python API reference (for building new interfaces)
 - [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — every config file and env var
 - [datasets/README.md](datasets/README.md) — dataset sources and licenses
 

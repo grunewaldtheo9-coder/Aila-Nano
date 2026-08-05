@@ -15,11 +15,16 @@ from memory.manager import MemoryContext, MemoryManager
 from model.generate import generate, generate_stream
 from model.transformer import AilaNanoGPT
 from tokenizer.tokenizer import AilaTokenizer
+from vectordb.semantic_index import SemanticIndex
 
 AILA_KNOWLEDGE_PRIMER = (
     "You are Aila Nano, a small language model created by Aila Company Solutions, "
     "founded by Theo Grunewald Hames and Guilherme Grunewald Benkendorf. "
 )
+
+# How many knowledge-base chunks (from files indexed via `AilaEngine.learn_file`
+# / the terminal's `/learn` command) to surface as context per turn.
+KNOWLEDGE_TOP_K = 2
 
 
 @dataclass
@@ -43,29 +48,39 @@ class Agent:
         model: AilaNanoGPT,
         tokenizer: AilaTokenizer,
         memory: MemoryManager | None = None,
+        knowledge: SemanticIndex | None = None,
         device: str = "cpu",
     ):
         self.model = model.to(device)
         self.model.eval()
         self.tokenizer = tokenizer
         self.memory = memory
+        self.knowledge = knowledge
         self.device = device
 
     # -- prompt construction -----------------------------------------------
 
-    def _build_system_prompt(self, memory_ctx: MemoryContext | None) -> str:
+    def _build_system_prompt(self, query: str, memory_ctx: MemoryContext | None) -> str:
         prompt = self.system_prompt
+
         if memory_ctx and memory_ctx.relevant_facts:
             facts = "\n".join(f"- {f['content']}" for f in memory_ctx.relevant_facts)
             prompt = f"{prompt}\n\nRelevant background you may use if helpful:\n{facts}"
+
+        if self.knowledge and len(self.knowledge) > 0:
+            hits = self.knowledge.search(query, k=KNOWLEDGE_TOP_K)
+            if hits:
+                snippets = "\n".join(f"- {h['text']}" for h in hits)
+                prompt = f"{prompt}\n\nRelevant notes from your knowledge base:\n{snippets}"
+
         return prompt
 
     def _build_prompt_ids(
-        self, conversation_id: str, user_message: str, memory_ctx: MemoryContext | None
+        self, user_message: str, memory_ctx: MemoryContext | None
     ) -> list[int]:
         tok = self.tokenizer
         ids = [tok.bos_id]
-        system = self._build_system_prompt(memory_ctx)
+        system = self._build_system_prompt(user_message, memory_ctx)
         ids += [tok.system_id] + tok.encode(system) + [tok.end_turn_id]
 
         if memory_ctx:
@@ -86,6 +101,27 @@ class Agent:
             ids = ids[-max_prompt_len:]
         return ids
 
+    def _prepare_turn(
+        self, conversation_id: str, user_message: str
+    ) -> tuple[torch.Tensor, list[int]]:
+        """Shared setup for `respond`/`respond_stream`: build memory
+        context, then the prompt ids, then the input tensor. Returns
+        (input_tensor, prompt_ids).
+        """
+        memory_ctx = (
+            self.memory.build_context(conversation_id, query=user_message)
+            if self.memory
+            else None
+        )
+        prompt_ids = self._build_prompt_ids(user_message, memory_ctx)
+        input_tensor = torch.tensor([prompt_ids], dtype=torch.long, device=self.device)
+        return input_tensor, prompt_ids
+
+    def _remember_turn(self, conversation_id: str, user_message: str, reply: str) -> None:
+        if self.memory:
+            self.memory.add_turn(conversation_id, "user", user_message, agent_type=self.name)
+            self.memory.add_turn(conversation_id, "assistant", reply, agent_type=self.name)
+
     # -- inference -----------------------------------------------------
 
     @torch.no_grad()
@@ -97,14 +133,7 @@ class Agent:
         remember_turn: bool = True,
     ) -> str:
         settings = settings or self.default_settings
-        memory_ctx = (
-            self.memory.build_context(conversation_id, query=user_message)
-            if self.memory
-            else None
-        )
-
-        prompt_ids = self._build_prompt_ids(conversation_id, user_message, memory_ctx)
-        input_tensor = torch.tensor([prompt_ids], dtype=torch.long, device=self.device)
+        input_tensor, prompt_ids = self._prepare_turn(conversation_id, user_message)
 
         out = generate(
             self.model,
@@ -119,12 +148,12 @@ class Agent:
         new_ids = out[0, len(prompt_ids) :].tolist()
         reply = self.tokenizer.decode(new_ids, skip_special_tokens=True).strip()
 
-        if self.memory and remember_turn:
-            self.memory.add_turn(conversation_id, "user", user_message, agent_type=self.name)
-            self.memory.add_turn(conversation_id, "assistant", reply, agent_type=self.name)
+        if remember_turn:
+            self._remember_turn(conversation_id, user_message, reply)
 
         return reply
 
+    @torch.no_grad()
     def respond_stream(
         self,
         conversation_id: str,
@@ -134,17 +163,11 @@ class Agent:
     ):
         """Generator form of `respond`: yields decoded text deltas as they
         are produced, and stores the full turn in memory once generation
-        finishes. Used by the streaming (SSE) chat endpoint.
+        finishes. This is what `chat.py` uses to print Aila's reply as it
+        types, rather than waiting for the whole response.
         """
         settings = settings or self.default_settings
-        memory_ctx = (
-            self.memory.build_context(conversation_id, query=user_message)
-            if self.memory
-            else None
-        )
-
-        prompt_ids = self._build_prompt_ids(conversation_id, user_message, memory_ctx)
-        input_tensor = torch.tensor([prompt_ids], dtype=torch.long, device=self.device)
+        input_tensor, _ = self._prepare_turn(conversation_id, user_message)
 
         produced_ids: list[int] = []
         decoded_so_far = ""
@@ -167,9 +190,8 @@ class Agent:
             if delta:
                 yield delta
 
-        if self.memory and remember_turn:
-            self.memory.add_turn(conversation_id, "user", user_message, agent_type=self.name)
-            self.memory.add_turn(conversation_id, "assistant", decoded_so_far, agent_type=self.name)
+        if remember_turn:
+            self._remember_turn(conversation_id, user_message, decoded_so_far)
 
     def prompt_preview(self, conversation_id: str, user_message: str) -> str:
         """Debug helper: render the prompt as a string instead of ids."""
@@ -178,5 +200,5 @@ class Agent:
             if self.memory
             else None
         )
-        system = self._build_system_prompt(memory_ctx)
+        system = self._build_system_prompt(user_message, memory_ctx)
         return format_prompt_for_inference(user_message, system=system)
