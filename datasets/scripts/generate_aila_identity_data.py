@@ -217,25 +217,38 @@ FACTS: list[dict[str, list[str]]] = [
 ]
 
 
+# The two facts nearly every user asks first — who made you, and what are
+# you — get oversampled relative to the rest. On a model this small (~10.9M
+# params) trained on only ~80 total instruction examples, the frequency an
+# exact fact appears at matters a lot more than it would for a larger model;
+# repeating the highest-priority facts (with the same phrasing variety, just
+# more passes through it) measurably improves how reliably they're recalled
+# without meaningfully diluting coverage of the rest.
+OVERSAMPLE_FACT_INDEXES = {0, 1}  # "What is Aila Nano?" / "Who created you?"
+OVERSAMPLE_FACTOR = 3
+
+
 def main() -> None:
     personas = list(AGENT_REGISTRY.keys())
     prompts = {name: cls.system_prompt for name, cls in AGENT_REGISTRY.items()}
 
     examples = []
     persona_idx = 0
-    for fact in FACTS:
-        for i, instruction in enumerate(fact["instructions"]):
-            output = fact["outputs"][i % len(fact["outputs"])]
-            persona = personas[persona_idx % len(personas)]
-            persona_idx += 1
-            examples.append(
-                {
-                    "system": prompts[persona],
-                    "instruction": instruction,
-                    "input": "",
-                    "output": output,
-                }
-            )
+    for fact_idx, fact in enumerate(FACTS):
+        repeats = OVERSAMPLE_FACTOR if fact_idx in OVERSAMPLE_FACT_INDEXES else 1
+        for _ in range(repeats):
+            for i, instruction in enumerate(fact["instructions"]):
+                output = fact["outputs"][i % len(fact["outputs"])]
+                persona = personas[persona_idx % len(personas)]
+                persona_idx += 1
+                examples.append(
+                    {
+                        "system": prompts[persona],
+                        "instruction": instruction,
+                        "input": "",
+                        "output": output,
+                    }
+                )
 
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT_PATH, "w", encoding="utf-8") as f:
