@@ -43,6 +43,7 @@ class AilaTokenizer:
     def __init__(self, sp_model: spm.SentencePieceProcessor, model_path: str | None = None):
         self._sp = sp_model
         self.model_path = model_path
+        self._byte_fallback_ids: list[int] | None = None
 
     # -- construction -----------------------------------------------------
 
@@ -119,6 +120,28 @@ class AilaTokenizer:
 
     def id_to_piece(self, idx: int) -> str:
         return self._sp.id_to_piece(idx)
+
+    @property
+    def byte_fallback_ids(self) -> list[int]:
+        """Ids of the raw single-byte fallback pieces (`<0x00>`..`<0xFF>`)
+        SentencePiece adds when `byte_fallback=True` (see
+        tokenizer/trainer.py) so any UTF-8 input is representable without
+        ever emitting `<unk>`. These are meant purely as an encoding
+        safety net for characters outside the learned vocabulary — normal
+        English text never needs them, so they almost never appear as a
+        *target* during training and their embeddings stay poorly
+        calibrated. Left unchecked, generation can occasionally latch onto
+        one as a locally high-probability but semantically meaningless
+        choice; `model.generate`/`generate_stream`'s `suppress_token_ids`
+        uses this list to rule them out by default.
+        """
+        if self._byte_fallback_ids is None:
+            self._byte_fallback_ids = [
+                i
+                for i in range(self.vocab_size)
+                if self.id_to_piece(i).startswith("<0x") and self.id_to_piece(i).endswith(">")
+            ]
+        return self._byte_fallback_ids
 
     def __len__(self) -> int:
         return self.vocab_size

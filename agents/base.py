@@ -12,7 +12,7 @@ import torch
 
 from finetuning.format import format_prompt_for_inference
 from memory.manager import MemoryContext, MemoryManager
-from model.generate import generate, generate_stream
+from model.generate import DEFAULT_NO_REPEAT_NGRAM_SIZE, generate, generate_stream
 from model.transformer import AilaNanoGPT
 from tokenizer.tokenizer import AilaTokenizer
 from vectordb.semantic_index import SemanticIndex
@@ -34,6 +34,7 @@ class GenerationSettings:
     top_k: int | None = 40
     top_p: float | None = 0.95
     repetition_penalty: float = 1.15
+    no_repeat_ngram_size: int = DEFAULT_NO_REPEAT_NGRAM_SIZE
 
 
 class Agent:
@@ -143,7 +144,9 @@ class Agent:
             top_k=settings.top_k,
             top_p=settings.top_p,
             repetition_penalty=settings.repetition_penalty,
+            no_repeat_ngram_size=settings.no_repeat_ngram_size,
             eos_id=self.tokenizer.end_turn_id,
+            suppress_token_ids=self.tokenizer.byte_fallback_ids,
         )
         new_ids = out[0, len(prompt_ids) :].tolist()
         reply = self.tokenizer.decode(new_ids, skip_special_tokens=True).strip()
@@ -179,7 +182,9 @@ class Agent:
             top_k=settings.top_k,
             top_p=settings.top_p,
             repetition_penalty=settings.repetition_penalty,
+            no_repeat_ngram_size=settings.no_repeat_ngram_size,
             eos_id=self.tokenizer.end_turn_id,
+            suppress_token_ids=self.tokenizer.byte_fallback_ids,
         ):
             if token_id == self.tokenizer.end_turn_id:
                 break

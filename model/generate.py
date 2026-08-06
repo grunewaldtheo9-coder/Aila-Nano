@@ -12,6 +12,8 @@ import torch.nn.functional as F
 
 from model.transformer import AilaNanoGPT
 
+DEFAULT_NO_REPEAT_NGRAM_SIZE = 3
+
 
 @torch.no_grad()
 def generate(
@@ -22,7 +24,9 @@ def generate(
     top_k: int | None = 40,
     top_p: float | None = 0.95,
     repetition_penalty: float = 1.15,
+    no_repeat_ngram_size: int = DEFAULT_NO_REPEAT_NGRAM_SIZE,
     eos_id: int | None = None,
+    suppress_token_ids: list[int] | None = None,
 ) -> torch.Tensor:
     """Sample a continuation for `input_ids` (shape: (batch, prompt_len)).
 
@@ -30,6 +34,18 @@ def generate(
     Generation for a batch element stops early (padding with eos_id) once it
     emits `eos_id`; sequences shorter than the batch max are marked with
     `eos_id` past the true end.
+
+    `suppress_token_ids`: ids that should never be sampled (e.g. a
+    tokenizer's byte-fallback pieces — see
+    `tokenizer.AilaTokenizer.byte_fallback_ids` — which are an encoding
+    safety net, not something a small model reliably learns to avoid on
+    its own from a tiny amount of training).
+
+    `no_repeat_ngram_size`: block any token that would complete a repeat
+    of an n-gram already seen in this generation (0 disables). A flat
+    `repetition_penalty` alone can still lose to a strong enough model
+    preference and loop forever (e.g. "Aila Aila Aila ..."); hard-blocking
+    repeated n-grams is what actually guarantees the loop breaks.
     """
     model.eval()
     device = input_ids.device
@@ -55,7 +71,9 @@ def generate(
     next_logits = logits[:, -1, :]
 
     for _ in range(max_new_tokens):
+        next_logits = _suppress_tokens(next_logits, suppress_token_ids)
         next_logits = _apply_repetition_penalty(next_logits, generated, repetition_penalty)
+        next_logits = _block_repeated_ngrams(next_logits, generated, no_repeat_ngram_size)
         next_token = _sample(next_logits, temperature=temperature, top_k=top_k, top_p=top_p)
 
         if eos_id is not None:
@@ -83,11 +101,14 @@ def generate_stream(
     top_k: int | None = 40,
     top_p: float | None = 0.95,
     repetition_penalty: float = 1.15,
+    no_repeat_ngram_size: int = DEFAULT_NO_REPEAT_NGRAM_SIZE,
     eos_id: int | None = None,
+    suppress_token_ids: list[int] | None = None,
 ):
     """Generator version of `generate` for a single prompt (batch size 1),
-    yielding one new token id at a time as it's produced — what the web
-    backend's SSE `/chat/stream` endpoint consumes.
+    yielding one new token id at a time as it's produced — what `chat.py`
+    prints as Aila's reply is typed out. See `generate` for
+    `suppress_token_ids` and `no_repeat_ngram_size`.
     """
     if input_ids.shape[0] != 1:
         raise ValueError("generate_stream only supports batch size 1")
@@ -102,7 +123,9 @@ def generate_stream(
     next_logits = logits[:, -1, :]
 
     for _ in range(max_new_tokens):
+        next_logits = _suppress_tokens(next_logits, suppress_token_ids)
         next_logits = _apply_repetition_penalty(next_logits, generated, repetition_penalty)
+        next_logits = _block_repeated_ngrams(next_logits, generated, no_repeat_ngram_size)
         next_token = _sample(next_logits, temperature=temperature, top_k=top_k, top_p=top_p)
         token_id = int(next_token.item())
 
@@ -114,6 +137,14 @@ def generate_stream(
 
         logits, _ = model(next_token, kv_caches=kv_caches)
         next_logits = logits[:, -1, :]
+
+
+def _suppress_tokens(logits: torch.Tensor, token_ids: list[int] | None) -> torch.Tensor:
+    if not token_ids:
+        return logits
+    logits = logits.clone()
+    logits[:, token_ids] = float("-inf")
+    return logits
 
 
 def _apply_repetition_penalty(
@@ -128,6 +159,33 @@ def _apply_repetition_penalty(
         logits[b, seen] = torch.where(
             seen_logits > 0, seen_logits / penalty, seen_logits * penalty
         )
+    return logits
+
+
+def _block_repeated_ngrams(
+    logits: torch.Tensor, generated: torch.Tensor, ngram_size: int
+) -> torch.Tensor:
+    """Standard no-repeat-ngram blocking (as in e.g. HuggingFace
+    `transformers`' `NoRepeatNGramLogitsProcessor`): for each batch item,
+    find every earlier occurrence of the (ngram_size - 1)-token suffix
+    that immediately precedes the position about to be generated, and
+    ban whatever token followed it there — that's exactly the set of
+    tokens that would recreate an already-seen n-gram.
+    """
+    if ngram_size <= 0:
+        return logits
+    logits = logits.clone()
+    for b in range(generated.shape[0]):
+        seq = generated[b].tolist()
+        if len(seq) < ngram_size:
+            continue
+        prefix = tuple(seq[-(ngram_size - 1):]) if ngram_size > 1 else ()
+        banned: set[int] = set()
+        for i in range(len(seq) - ngram_size + 1):
+            if tuple(seq[i : i + ngram_size - 1]) == prefix:
+                banned.add(seq[i + ngram_size - 1])
+        if banned:
+            logits[b, list(banned)] = float("-inf")
     return logits
 
 
