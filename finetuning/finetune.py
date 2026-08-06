@@ -59,6 +59,15 @@ class FinetuneConfig:
     out_dir: str = "checkpoints/finetune"
     device: str = "auto"
     seed: int = 1337
+    # A rolling `epoch_NNN.pt` is written every `checkpoint_every_n_epochs`
+    # epochs (in addition to `best.pt`, always kept up to date), and only
+    # the last `keep_last_n_checkpoints` of those are retained. Without
+    # this, a many-epoch run on a small dataset — a completely reasonable
+    # thing to do here, since fine-tuning is cheap — silently fills the
+    # disk: one checkpoint per epoch adds up fast (each is a full copy of
+    # the model + optimizer state).
+    keep_last_n_checkpoints: int = 3
+    checkpoint_every_n_epochs: int = 1
 
     def resolved_device(self) -> str:
         if self.device != "auto":
@@ -157,16 +166,33 @@ def run_finetune(
                     str(Path(cfg.out_dir) / "best.pt"), model, optimizer, step, best_val_loss
                 )
 
-        save_checkpoint(
-            str(Path(cfg.out_dir) / f"epoch_{epoch:03d}.pt"),
-            model,
-            optimizer,
-            step,
-            best_val_loss,
-        )
+        if epoch % cfg.checkpoint_every_n_epochs == 0 or epoch == cfg.epochs - 1:
+            save_checkpoint(
+                str(Path(cfg.out_dir) / f"epoch_{epoch:03d}.pt"),
+                model,
+                optimizer,
+                step,
+                best_val_loss,
+            )
+            _prune_epoch_checkpoints(cfg.out_dir, cfg.keep_last_n_checkpoints)
 
     writer.close()
     return model
+
+
+def _prune_epoch_checkpoints(out_dir: str, keep_last_n: int) -> None:
+    checkpoints = sorted(Path(out_dir).glob("epoch_*.pt"))
+    # Regression note: `excess` must be clamped to >= 0 before slicing.
+    # `checkpoints[:excess]` with a *negative* excess is not a no-op —
+    # Python slicing treats a negative stop as "count back from the end",
+    # so e.g. 2 checkpoints with keep_last_n=3 gives excess=-1 and
+    # `checkpoints[:-1]` deletes the oldest one anyway, even though we're
+    # under the limit. This silently capped every run at 1 retained
+    # checkpoint regardless of keep_last_n — caught by
+    # tests/test_finetuning.py::test_run_finetune_prunes_old_epoch_checkpoints.
+    excess = max(0, len(checkpoints) - keep_last_n)
+    for p in checkpoints[:excess]:
+        p.unlink(missing_ok=True)
 
 
 @torch.no_grad()

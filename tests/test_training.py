@@ -86,6 +86,50 @@ def test_trainer_runs_and_checkpoints(tmp_path, tiny_config):
     assert (Path(cfg.checkpoint_dir) / "best.pt").exists()
 
 
+def test_trainer_prunes_to_exactly_keep_last_n_checkpoints(tmp_path, tiny_config):
+    # Regression test: `excess = len(ckpts) - keep_last_n_checkpoints` must
+    # be clamped to >= 0 before slicing `ckpts[:excess]` — a negative
+    # excess is not a no-op slice in Python (it counts back from the end),
+    # so this used to silently cap every run at 1 retained rolling
+    # checkpoint no matter what keep_last_n_checkpoints was set to.
+    ids = np.random.randint(0, tiny_config.vocab_size, size=2000).tolist()
+    train_bin = tmp_path / "train.bin"
+    val_bin = tmp_path / "val.bin"
+    write_token_bin(ids[:1800], str(train_bin))
+    write_token_bin(ids[1800:], str(val_bin))
+
+    model = AilaNanoGPT(tiny_config)
+    cfg = TrainingConfig(
+        train_bin=str(train_bin),
+        val_bin=str(val_bin),
+        max_lr=1e-3,
+        min_lr=1e-4,
+        warmup_steps=2,
+        max_steps=50,
+        batch_size=4,
+        eval_interval=5,
+        eval_iters=2,
+        log_interval=5,
+        checkpoint_dir=str(tmp_path / "ckpts"),
+        keep_last_n_checkpoints=3,
+        early_stopping_patience=None,
+        device="cpu",
+        amp=False,
+        tensorboard_dir=str(tmp_path / "tb"),
+        num_workers=0,
+    )
+    trainer = Trainer(model, cfg)
+    trainer.train()
+
+    rolling_checkpoints = sorted(Path(cfg.checkpoint_dir).glob("step_*.pt"))
+    assert len(rolling_checkpoints) == 3
+    assert [p.name for p in rolling_checkpoints] == [
+        "step_0000040.pt",
+        "step_0000045.pt",
+        "step_0000050.pt",
+    ]
+
+
 def test_trainer_resume_continues_from_saved_step(tmp_path, tiny_config):
     ids = np.random.randint(0, tiny_config.vocab_size, size=2000).tolist()
     train_bin = tmp_path / "train.bin"

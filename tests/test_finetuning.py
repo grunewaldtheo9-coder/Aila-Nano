@@ -113,3 +113,27 @@ def test_run_finetune_end_to_end(tmp_path, tiny_model: AilaNanoGPT, tokenizer):
     )
     run_finetune(tiny_model, tokenizer, [str(SAMPLE_FINETUNE)], cfg)
     assert (Path(cfg.out_dir) / "epoch_001.pt").exists()
+
+
+def test_run_finetune_prunes_old_epoch_checkpoints(tmp_path, tiny_model: AilaNanoGPT, tokenizer):
+    # Regression test: a many-epoch fine-tune (perfectly reasonable on a
+    # small dataset, since fine-tuning is cheap) used to write one
+    # never-deleted checkpoint per epoch and could fill the disk.
+    cfg = FinetuneConfig(
+        epochs=10,
+        batch_size=2,
+        max_lr=1e-3,
+        min_lr=1e-4,
+        out_dir=str(tmp_path / "ft"),
+        device="cpu",
+        val_fraction=0.2,
+        log_interval=1000,
+        keep_last_n_checkpoints=3,
+    )
+    run_finetune(tiny_model, tokenizer, [str(SAMPLE_FINETUNE)], cfg)
+
+    epoch_checkpoints = sorted(Path(cfg.out_dir).glob("epoch_*.pt"))
+    assert len(epoch_checkpoints) == 3
+    # The retained checkpoints must be the *most recent* ones.
+    assert [p.name for p in epoch_checkpoints] == ["epoch_007.pt", "epoch_008.pt", "epoch_009.pt"]
+    assert (Path(cfg.out_dir) / "best.pt").exists()

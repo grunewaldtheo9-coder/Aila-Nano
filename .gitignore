@@ -16,6 +16,7 @@ venv/
 checkpoints/**/*.pt
 checkpoints/**/*.pth
 checkpoints/**/*.ckpt
+checkpoints/**/tb/
 !checkpoints/.gitkeep
 runs/
 tensorboard/

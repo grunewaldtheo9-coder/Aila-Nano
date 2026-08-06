@@ -142,7 +142,14 @@ class Trainer:
 
     def _prune_checkpoints(self) -> None:
         ckpts = sorted(Path(self.cfg.checkpoint_dir).glob("step_*.pt"))
-        excess = len(ckpts) - self.cfg.keep_last_n_checkpoints
+        # `excess` must be clamped to >= 0: a negative excess passed to
+        # `ckpts[:excess]` is not a no-op slice — Python treats a negative
+        # stop as "count back from the end", so e.g. 2 checkpoints with
+        # keep_last_n_checkpoints=3 gives excess=-1 and `ckpts[:-1]`
+        # deletes the oldest one anyway, even though we're under the
+        # limit. Unclamped, this silently capped every run at 1 retained
+        # rolling checkpoint regardless of keep_last_n_checkpoints.
+        excess = max(0, len(ckpts) - self.cfg.keep_last_n_checkpoints)
         for p in ckpts[:excess]:
             p.unlink(missing_ok=True)
 
