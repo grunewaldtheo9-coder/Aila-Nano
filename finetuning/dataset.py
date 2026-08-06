@@ -65,9 +65,25 @@ class InstructionDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         ids, labels = self._encoded[idx]
+        # encode_example returns `labels` position-aligned with `ids`
+        # (labels[i] is the label *at* position i), but AilaNanoGPT.forward
+        # does no internal shift — its cross_entropy compares logits[i]
+        # (computed from input_ids[0..i], which already includes ids[i]
+        # itself in the residual stream) directly against targets[i]. Feeding
+        # position-aligned labels straight through therefore trains the
+        # model on a trivial identity/copy task ("echo the token you just
+        # saw") instead of next-token prediction — loss drops beautifully
+        # (it's an easy task, especially with tied embeddings) while
+        # autoregressive generation never actually learns to respond.
+        # Pretraining avoids this because training/dataset.py builds
+        # properly shifted (x=chunk[:-1], y=chunk[1:]) pairs itself; we
+        # replicate that same shift here so both training paths agree on
+        # what `targets` means to the model.
+        input_ids = ids[:-1]
+        shifted_labels = labels[1:]
         return {
-            "input_ids": torch.tensor(ids, dtype=torch.long),
-            "labels": torch.tensor(labels, dtype=torch.long),
+            "input_ids": torch.tensor(input_ids, dtype=torch.long),
+            "labels": torch.tensor(shifted_labels, dtype=torch.long),
         }
 
 

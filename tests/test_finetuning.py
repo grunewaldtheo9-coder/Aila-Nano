@@ -39,6 +39,25 @@ def test_instruction_dataset_loads_aila_knowledge(tokenizer):
     assert item["input_ids"].shape == item["labels"].shape
 
 
+def test_instruction_dataset_shifts_labels_for_next_token_prediction(tokenizer):
+    # Regression test for a real bug: AilaNanoGPT.forward() does no internal
+    # shift (cross_entropy compares logits[i] straight to targets[i]), so
+    # feeding it encode_example's position-aligned (ids, labels) unshifted
+    # trains the model to predict the token it just saw instead of the next
+    # one — a trivial identity/copy task that made teacher-forced loss drop
+    # nicely while autoregressive generation stayed broken. InstructionDataset
+    # must shift so item["labels"][i] is the target for item["input_ids"][i]
+    # under the model's own (no-internal-shift) convention, exactly mirroring
+    # how training/dataset.py builds (x=chunk[:-1], y=chunk[1:]) for pretraining.
+    ds = InstructionDataset(str(SAMPLE_FINETUNE), tokenizer, max_seq_len=256)
+    raw_ids, raw_labels = ds._encoded[0]
+
+    item = ds[0]
+    assert item["input_ids"].tolist() == raw_ids[:-1]
+    assert item["labels"].tolist() == raw_labels[1:]
+    assert item["input_ids"].shape == item["labels"].shape
+
+
 def test_collate_pads_batch_to_max_length(tokenizer):
     ds = InstructionDataset(str(SAMPLE_FINETUNE), tokenizer, max_seq_len=256)
     batch = [ds[0], ds[1]]
@@ -137,3 +156,49 @@ def test_run_finetune_prunes_old_epoch_checkpoints(tmp_path, tiny_model: AilaNan
     # The retained checkpoints must be the *most recent* ones.
     assert [p.name for p in epoch_checkpoints] == ["epoch_007.pt", "epoch_008.pt", "epoch_009.pt"]
     assert (Path(cfg.out_dir) / "best.pt").exists()
+
+
+def test_run_finetune_learns_real_next_token_prediction(tmp_path, tiny_model: AilaNanoGPT, tokenizer):
+    # Regression test for the label-shift bug above, but at the level that
+    # actually would have caught it: teacher-forced val_loss looked great
+    # under the bug too (an identity/copy task is *easy* to learn), so the
+    # only reliable check is whether *autoregressive* generation — with no
+    # teacher forcing to lean on — reproduces the trained response. Overfit
+    # a tiny model hard on one repeated example, then greedy-decode from the
+    # prompt alone and require the exact trained continuation to appear.
+    import json
+
+    from finetuning.format import format_prompt_for_inference
+    from model.generate import generate
+
+    instruction = "Say hi."
+    output = "Hello there friend"
+    data_path = tmp_path / "one_example.jsonl"
+    with open(data_path, "w") as f:
+        for _ in range(4):  # a few duplicate lines so batches aren't degenerate
+            f.write(json.dumps({"instruction": instruction, "output": output}) + "\n")
+
+    cfg = FinetuneConfig(
+        epochs=60,
+        batch_size=4,
+        max_lr=5e-3,
+        min_lr=5e-4,
+        out_dir=str(tmp_path / "ft"),
+        device="cpu",
+        val_fraction=0.0,
+        log_interval=1000,
+    )
+    run_finetune(tiny_model, tokenizer, [str(data_path)], cfg)
+
+    prompt_ids = format_prompt_for_inference(instruction, tokenizer=tokenizer)
+    import torch
+
+    input_ids = torch.tensor([prompt_ids], dtype=torch.long)
+    out = generate(tiny_model, input_ids, max_new_tokens=16, temperature=1.0, top_k=1, top_p=None)
+    generated_text = tokenizer.decode(out[0, len(prompt_ids):].tolist())
+
+    assert "Hello there friend" in generated_text, (
+        f"expected the memorized response to appear verbatim in greedy-decoded "
+        f"output, got {generated_text!r} — this is exactly the failure mode "
+        f"produced by unshifted (input_ids, labels) pairs"
+    )
