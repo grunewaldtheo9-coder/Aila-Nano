@@ -1,14 +1,25 @@
-# A one-off config for finding the actual sweet spot on real data: keeps
-# a checkpoint every 3 epochs, retaining the last 15 of them (spanning
-# most of a 60-epoch run) instead of just the final few, since we've
-# seen teacher-forced val_loss alone can look great while autoregressive
-# generation has already collapsed into repetition — this run compares
-# several checkpoints' actual chat output, not just the loss curve.
-epochs: 60
+# A one-off config for finding the actual sweet spot on real data.
+#
+# max_lr dropped 6x from the original 3e-5 to 5e-6: every prior attempt
+# showed very large pre-clip gradient norms (18-23) in the first few
+# steps — the special chat-format tokens are unseen by pretraining, so
+# their initial predictions are far off and produce a large gradient
+# shock. grad_clip=1.0 bounds any single step, but repeated large-ish
+# updates at 3e-5 over many steps still measurably degraded the
+# pretrained model's general language ability (confirmed: raw
+# continuation prompts stayed coherent throughout, but chat-formatted
+# generation degraded from "diffuse, reasonable" at zero fine-tuning to
+# repetition-loop garbage by epoch 18). A much gentler LR should let the
+# new tokens' embeddings adapt without swamping everything else.
+#
+# Keeps a checkpoint every 3 epochs, retaining the last 15, so several
+# points across the run can be compared for actual generation quality
+# instead of trusting val_loss alone (see scripts/compare_finetune_checkpoints.py).
+epochs: 50
 batch_size: 4
-max_lr: 3.0e-5
-min_lr: 5.0e-6
-warmup_ratio: 0.05
+max_lr: 5.0e-6
+min_lr: 1.0e-6
+warmup_ratio: 0.1
 weight_decay: 0.01
 betas: [0.9, 0.95]
 grad_clip: 1.0
