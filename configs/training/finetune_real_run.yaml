@@ -1,0 +1,21 @@
+# A one-off config for finding the actual sweet spot on real data: keeps
+# a checkpoint every 3 epochs, retaining the last 15 of them (spanning
+# most of a 60-epoch run) instead of just the final few, since we've
+# seen teacher-forced val_loss alone can look great while autoregressive
+# generation has already collapsed into repetition — this run compares
+# several checkpoints' actual chat output, not just the loss curve.
+epochs: 60
+batch_size: 4
+max_lr: 3.0e-5
+min_lr: 5.0e-6
+warmup_ratio: 0.05
+weight_decay: 0.01
+betas: [0.9, 0.95]
+grad_clip: 1.0
+val_fraction: 0.12
+log_interval: 20
+out_dir: checkpoints/finetune_real
+device: cpu
+seed: 1337
+keep_last_n_checkpoints: 15
+checkpoint_every_n_epochs: 3
