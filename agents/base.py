@@ -91,11 +91,18 @@ class Agent:
         system = self._build_system_prompt(user_message, memory_ctx)
         ids += [tok.system_id] + tok.encode(system) + [tok.end_turn_id]
 
-        if memory_ctx:
-            for turn in memory_ctx.history:
-                role_id = tok.user_id if turn["role"] == "user" else tok.assistant_id
-                ids += [role_id] + tok.encode(turn["content"]) + [tok.end_turn_id]
-
+        # Deliberately NOT injecting memory_ctx.history as extra
+        # <|user|>/<|assistant|> turns here, even though the tokens exist to
+        # do it. Every fine-tuning example is a single system+user+assistant
+        # turn — the model has never seen more than one user/assistant pair
+        # in a prompt. Feeding real prior turns in makes the input
+        # increasingly out-of-distribution as a conversation grows, and in
+        # practice knocks the model off "answer as Aila Nano" and back onto
+        # its pretraining prior (freeform TinyStories-style narrative) after
+        # just a couple of turns. Conversation history is still recorded via
+        # `_remember_turn` below (so `/history` and long-term memory keep
+        # working) — it's just not replayed into the generation prompt
+        # until the model is actually fine-tuned on multi-turn examples.
         ids += [tok.user_id] + tok.encode(user_message) + [tok.end_turn_id]
         ids += [tok.assistant_id]
 
