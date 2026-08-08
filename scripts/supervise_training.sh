@@ -18,15 +18,30 @@ resumes=0
 
 reached_target() {
   .venv/bin/python - "$TARGET_STEPS" <<'PY' 2>/dev/null
+import glob
 import sys
-from pathlib import Path
+
 target = int(sys.argv[1])
-ck = Path("checkpoints/pretrain_20m/best.pt")
-if not ck.exists():
+
+# Check the FURTHEST-ALONG checkpoint, not best.pt. best.pt tracks the
+# lowest validation loss, which is routinely an *earlier* step than the
+# final one (this run: best.pt=650, final=700). An earlier version of
+# this script compared best.pt's step against the target, concluded
+# training had stopped short, and relaunched a finished run — burning
+# its whole retry budget and then refusing to fine-tune at all.
+paths = glob.glob("checkpoints/pretrain_20m/*.pt")
+if not paths:
     sys.exit(1)
+
 import torch
-step = torch.load(ck, map_location="cpu", weights_only=False).get("step", 0)
-sys.exit(0 if step >= target else 1)
+
+best = 0
+for p in paths:
+    try:
+        best = max(best, torch.load(p, map_location="cpu", weights_only=False).get("step", 0))
+    except Exception:
+        continue  # a half-written checkpoint shouldn't crash the gate
+sys.exit(0 if best >= target else 1)
 PY
 }
 
