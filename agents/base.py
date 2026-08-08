@@ -6,9 +6,13 @@ should share the same LLM but use different system behaviors.").
 
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass
 
 import torch
+
+logger = logging.getLogger(__name__)
 
 from finetuning.format import format_prompt_for_inference
 from memory.commands import guess_category, parse_memory_command
@@ -232,10 +236,12 @@ class Agent:
         settings: GenerationSettings | None = None,
         remember_turn: bool = True,
     ) -> str:
+        started = time.time()
         command_reply = self._handle_memory_command(user_message)
         if command_reply is not None:
             if remember_turn:
                 self._remember_turn(conversation_id, user_message, command_reply)
+            logger.info("turn path=memory_command latency=%.3fs", time.time() - started)
             return command_reply
 
         # Tool routing (calculator / knowledge base / web research) —
@@ -248,6 +254,9 @@ class Agent:
             if route.direct_reply is not None:
                 if remember_turn:
                     self._remember_turn(conversation_id, user_message, route.direct_reply)
+                logger.info(
+                    "turn path=tool:%s latency=%.3fs", route.tool_used, time.time() - started
+                )
                 return route.direct_reply
             if route.context_snippets:
                 web_snippets = route.context_snippets
@@ -275,6 +284,14 @@ class Agent:
         if remember_turn:
             self._remember_turn(conversation_id, user_message, reply)
 
+        elapsed = time.time() - started
+        logger.info(
+            "turn path=generation tokens=%d latency=%.3fs (%.0f tok/s)%s",
+            len(new_ids),
+            elapsed,
+            len(new_ids) / elapsed if elapsed > 0 else 0.0,
+            " web_context=yes" if web_snippets else "",
+        )
         return reply
 
     @torch.no_grad()
