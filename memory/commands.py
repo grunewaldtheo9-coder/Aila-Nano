@@ -36,6 +36,27 @@ _LIST_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Filler words that are never a memory on their own. "remember that" (no
+# actual content) otherwise captures the literal word "that" as the fact,
+# because the optional `(?:that\s+)?` group needs trailing whitespace to
+# match and falls through to the `(.+)` body instead.
+_CONTENT_FILLER = {"that", "about", "it", "this", "the"}
+
+# Upper bound on a single stored memory. Memories are injected verbatim
+# into the prompt, so an unbounded one could crowd out the entire system
+# prompt (or the user's actual question) inside the context window.
+MAX_MEMORY_CHARS = 500
+
+
+def _clean_content(raw: str) -> str | None:
+    """Normalize a captured fact body, or None if it isn't real content."""
+    content = raw.strip().rstrip(".!?").strip()
+    if not content:
+        return None
+    if content.lower() in _CONTENT_FILLER:
+        return None
+    return content[:MAX_MEMORY_CHARS]
+
 
 def parse_memory_command(text: str) -> MemoryCommand | None:
     """Returns a MemoryCommand if `text` matches one of the recognized
@@ -49,13 +70,13 @@ def parse_memory_command(text: str) -> MemoryCommand | None:
 
     m = _FORGET_RE.match(stripped)
     if m:
-        content = m.group(1).strip().rstrip(".!?")
+        content = _clean_content(m.group(1))
         if content:
             return MemoryCommand(kind="forget", content=content)
 
     m = _REMEMBER_RE.match(stripped)
     if m:
-        content = m.group(1).strip().rstrip(".!?")
+        content = _clean_content(m.group(1))
         if content:
             return MemoryCommand(kind="remember", content=content)
 

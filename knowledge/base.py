@@ -119,7 +119,18 @@ class KnowledgeBase:
         'updated'   — merged into an existing row (metadata refreshed)
         'conflict'  — existing row marked conflicted; newcomer stored as
                       a candidate (id is the candidate id)
+        'rejected'  — input was empty/unusable; nothing stored (id is -1)
         """
+        question = (question or "").strip()
+        answer = (answer or "").strip()
+        # An empty question or answer is never usable knowledge — it can
+        # never be retrieved (lexical_overlap_score returns 0.0 for empty
+        # text) and would only pollute the store. Reject rather than
+        # store an unreachable row.
+        if not question or not answer:
+            logger.info("knowledge rejected: empty question or answer")
+            return ("rejected", -1)
+
         for row in self.store.all_knowledge():
             if lexical_overlap_score(question, row["question"]) < DEDUP_QUESTION_THRESHOLD:
                 continue
