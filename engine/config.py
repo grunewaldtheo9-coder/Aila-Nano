@@ -9,14 +9,49 @@ the full reference.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 
 import torch
 
+logger = logging.getLogger(__name__)
+
 
 def _env(name: str, default: str) -> str:
     return os.environ.get(name, default)
+
+
+def _env_int(name: str, default: int) -> int:
+    """Numeric env var with a safe fallback. A typo in `.env`
+    (AILA_WEB_MAX_RESULTS=five) must not kill startup with a raw
+    ValueError traceback — warn and use the default instead."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("%s=%r is not an integer; using default %d.", name, raw, default)
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning("%s=%r is not a number; using default %s.", name, raw, default)
+        return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
 @dataclass
@@ -60,18 +95,18 @@ class EngineSettings:
     # Secret: only ever read from the environment / .env (gitignored).
     serper_api_key: str = field(default_factory=lambda: _env("SERPER_API_KEY", ""))
     web_search_enabled: bool = field(
-        default_factory=lambda: _env("AILA_WEB_SEARCH_ENABLED", "true").lower() in ("1", "true", "yes")
+        default_factory=lambda: _env_bool("AILA_WEB_SEARCH_ENABLED", True)
     )
-    web_max_results: int = field(default_factory=lambda: int(_env("AILA_WEB_MAX_RESULTS", "5")))
+    web_max_results: int = field(default_factory=lambda: _env_int("AILA_WEB_MAX_RESULTS", 5))
     web_timeout_seconds: float = field(
-        default_factory=lambda: float(_env("AILA_WEB_TIMEOUT_SECONDS", "8"))
+        default_factory=lambda: _env_float("AILA_WEB_TIMEOUT_SECONDS", 8.0)
     )
     web_cache_ttl_hours: float = field(
-        default_factory=lambda: float(_env("AILA_WEB_CACHE_TTL_HOURS", "168"))
+        default_factory=lambda: _env_float("AILA_WEB_CACHE_TTL_HOURS", 168.0)
     )
-    retrieval_top_k: int = field(default_factory=lambda: int(_env("AILA_RETRIEVAL_TOP_K", "3")))
+    retrieval_top_k: int = field(default_factory=lambda: _env_int("AILA_RETRIEVAL_TOP_K", 3))
     relevance_threshold: float = field(
-        default_factory=lambda: float(_env("AILA_RELEVANCE_THRESHOLD", "0.2"))
+        default_factory=lambda: _env_float("AILA_RELEVANCE_THRESHOLD", 0.2)
     )
 
     def resolved_device(self) -> str:

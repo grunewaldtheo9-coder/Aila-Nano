@@ -289,6 +289,80 @@ def test_router_survives_hostile_input(hostile, kb):
     assert isinstance(result, RouteResult)
 
 
+# -- 5. failure paths must degrade, not crash --------------------------------
+
+
+def test_malformed_numeric_env_vars_fall_back_to_defaults(monkeypatch, caplog):
+    """A typo in .env (AILA_WEB_MAX_RESULTS=five) used to kill startup
+    with a raw ValueError traceback."""
+    from engine.config import EngineSettings
+
+    monkeypatch.setenv("AILA_WEB_MAX_RESULTS", "five")
+    monkeypatch.setenv("AILA_WEB_TIMEOUT_SECONDS", "soon")
+    monkeypatch.setenv("AILA_RELEVANCE_THRESHOLD", "high")
+
+    with caplog.at_level(logging.WARNING):
+        settings = EngineSettings()
+
+    assert settings.web_max_results == 5
+    assert settings.web_timeout_seconds == 8.0
+    assert settings.relevance_threshold == 0.2
+    assert "not an integer" in caplog.text  # the operator is told why
+
+
+def test_valid_numeric_env_vars_are_honored(monkeypatch):
+    from engine.config import EngineSettings
+
+    monkeypatch.setenv("AILA_WEB_MAX_RESULTS", "9")
+    monkeypatch.setenv("AILA_RELEVANCE_THRESHOLD", "0.45")
+    settings = EngineSettings()
+    assert settings.web_max_results == 9
+    assert settings.relevance_threshold == 0.45
+
+
+def test_incompatible_checkpoint_is_never_loaded_silently(tiny_model, tmp_path):
+    """Spec requirement: architecture/config compatibility must be
+    validated — loading mismatched weights must fail loudly."""
+    import torch
+
+    from model.config import GPTConfig
+    from model.transformer import AilaNanoGPT
+
+    state = tiny_model.state_dict()
+    bigger = AilaNanoGPT(
+        GPTConfig(
+            vocab_size=tiny_model.cfg.vocab_size,
+            max_seq_len=tiny_model.cfg.max_seq_len,
+            n_layers=tiny_model.cfg.n_layers + 2,  # different architecture
+            d_model=tiny_model.cfg.d_model,
+            n_heads=tiny_model.cfg.n_heads,
+            n_kv_heads=tiny_model.cfg.n_kv_heads,
+            mlp_hidden_mult=tiny_model.cfg.mlp_hidden_mult,
+        )
+    )
+    with pytest.raises(RuntimeError):
+        bigger.load_state_dict(state)
+
+    # And a truncated/garbage checkpoint file must not load either.
+    from training.checkpoint import load_checkpoint
+
+    bad = tmp_path / "corrupt.pt"
+    bad.write_bytes(b"definitely not a torch checkpoint")
+    with pytest.raises(Exception):
+        load_checkpoint(str(bad))
+
+
+def test_corrupted_database_raises_a_recognizable_error(tmp_path):
+    """chat.py catches sqlite3.DatabaseError specifically to print a
+    recovery hint instead of a traceback — so the error type matters."""
+    import sqlite3
+
+    corrupt = tmp_path / "corrupt.db"
+    corrupt.write_bytes(b"\x00" * 4096)
+    with pytest.raises(sqlite3.DatabaseError):
+        KnowledgeStore(str(corrupt))
+
+
 def test_conflicted_knowledge_is_never_served(kb):
     """Poisoning defense: once two sources disagree, the fact stops being
     served as truth until re-verified, rather than one silently winning."""

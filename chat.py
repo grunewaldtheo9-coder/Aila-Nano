@@ -19,6 +19,7 @@ file.
 from __future__ import annotations
 
 import platform
+import sqlite3
 import sys
 import uuid
 
@@ -144,6 +145,19 @@ def main() -> int:
     except FileNotFoundError as e:
         print(f"\nCould not start: {e}")
         print("See docs/TRAINING.md to train a tokenizer/model first.")
+        return 1
+    except sqlite3.DatabaseError as e:
+        # A corrupted memory/knowledge database used to kill startup with
+        # a raw traceback. The data files are recoverable by deleting
+        # them (they're caches//user state, not the model), so say that.
+        print(f"\nCould not start: a storage file is corrupted ({e}).")
+        print(
+            "Delete the affected database file and restart — memory and knowledge\n"
+            "will be rebuilt empty. Default locations:\n"
+            "  memory/data/aila_memory.db\n"
+            "  vectordb/index/knowledge.db\n"
+            "  knowledge/data/aila_knowledge.db"
+        )
         return 1
 
     if not engine.is_trained:
