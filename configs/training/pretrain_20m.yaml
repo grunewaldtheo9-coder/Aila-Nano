@@ -1,0 +1,33 @@
+# Aila Nano 2.0 (~19.8M params) real pretraining run, time-budgeted for
+# CPU. Effective batch = 16 x 4 accum x 256 tokens = 16,384 tokens/step;
+# 700 steps ~= 11.5M tokens (~0.66 epochs over the 17.4M-token corpus).
+# The 1.0 run (10.9M params) measured ~8s/step at this shape; ~1.8x the
+# FLOPs puts this run at roughly 14-15s/step => ~2.5-3h wall time.
+# Checkpoint every 50 steps so a container restart resumes cleanly
+# (--resume).
+
+train_bin: datasets/processed/pretrain_train.bin
+val_bin: datasets/processed/pretrain_val.bin
+
+max_lr: 5.0e-4
+min_lr: 5.0e-5
+warmup_steps: 40
+max_steps: 700
+weight_decay: 0.1
+betas: [0.9, 0.95]
+grad_clip: 1.0
+grad_accum_steps: 4
+batch_size: 16
+
+eval_interval: 50
+eval_iters: 20
+log_interval: 10
+checkpoint_dir: checkpoints/pretrain_20m
+keep_last_n_checkpoints: 2
+early_stopping_patience: null
+
+device: cpu
+amp: false
+seed: 1337
+tensorboard_dir: runs/pretrain_20m
+num_workers: 0

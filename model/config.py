@@ -92,6 +92,31 @@ def nano_10m() -> GPTConfig:
     )
 
 
+def nano_20m() -> GPTConfig:
+    """The Aila Nano 2.0 ~19.8M-parameter preset.
+
+    Measured programmatically (sum of p.numel() with tied embeddings):
+    19,796,160 parameters. Sized against nearby candidates (320d x 16L =
+    20.9M, 352d x 13L = 20.9M, 384d x 11L = 21.2M) — 320d x 15L lands
+    closest to the 20M target. Deeper-and-narrower is preferred over
+    wider-and-shallower at this scale: depth buys more capability per
+    parameter for small models, and d_model=320 keeps head_dim=40 with
+    the same 8q/4kv grouped-query layout as nano_10m.
+    """
+    return GPTConfig(
+        vocab_size=8192,
+        max_seq_len=512,
+        n_layers=15,
+        d_model=320,
+        n_heads=8,
+        n_kv_heads=4,
+        mlp_hidden_mult=2.72,
+        dropout=0.1,
+        tie_embeddings=True,
+        bias=False,
+    )
+
+
 def tiny_debug() -> GPTConfig:
     """A tiny config for fast unit tests / CI (not for real training)."""
     return GPTConfig(

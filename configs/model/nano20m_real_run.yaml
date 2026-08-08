@@ -1,0 +1,21 @@
+# Aila Nano 2.0 architecture (see model/config.py::nano_20m) with the
+# same practical 256-token training context the 1.0 run used: on CPU
+# (no flash-attention kernel; the math fallback materializes full
+# attention matrices) seq=512 halves throughput vs seq=256, and at
+# ~19.8M params that pushed a single epoch past 9 hours of wall time.
+# The 4096-token context requested for 2.0 is not feasible on CPU at
+# this scale — documented in docs/MODEL_CARD.md. max_seq_len here is
+# the trained/served context; parameter count is unaffected by it.
+vocab_size: 8192
+max_seq_len: 256
+n_layers: 15
+d_model: 320
+n_heads: 8
+n_kv_heads: 4
+mlp_hidden_mult: 2.72
+dropout: 0.1
+norm_eps: 1.0e-5
+rope_theta: 10000.0
+initializer_range: 0.02
+tie_embeddings: true
+bias: false
