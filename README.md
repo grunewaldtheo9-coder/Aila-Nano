@@ -69,7 +69,7 @@ same engine with no changes to the model, memory, or agents. See
 | [`tools/`](tools/) | Tool router + calculator; extension point for future capabilities |
 | [`chat.py`](chat.py) | The terminal chat interface — the only thing you run |
 | [`configs/`](configs/) | YAML configs for the model and training/fine-tuning runs |
-| [`scripts/`](scripts/) | Utility scripts (parameter counting, etc.) |
+| [`scripts/`](scripts/) | Utilities: parameter counting, benchmarking, checkpoint comparison, training supervisor |
 | [`tests/`](tests/) | Pytest suite covering every module above |
 
 ## Quickstart
@@ -122,7 +122,7 @@ python chat.py
 
 ```
 =====================================
-Aila Nano v0.2
+Aila Nano v2.0
 Small Language Model
 Python 3.13
 CPU Mode
