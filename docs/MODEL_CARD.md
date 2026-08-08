@@ -2,16 +2,35 @@
 
 ## Summary
 
+Two model generations share this codebase:
+
+| | Aila Nano 1.0 (`nano_10m`) | Aila Nano 2.0 (`nano_20m`) |
+|---|---|---|
+| Parameters (measured) | 10,877,184 | 19,796,160 |
+| Layers | 12 | 15 |
+| d_model | 256 | 320 |
+| Attention | 8 query / 4 KV heads (GQA), head_dim 32 | 8 query / 4 KV heads (GQA), head_dim 40 |
+| MLP | SwiGLU, hidden mult 2.72 | SwiGLU, hidden mult 2.72 |
+| Context length (spec / trained) | 512 / 256 | 512 / 256 |
+| Vocabulary | 8,192 (SentencePiece BPE, byte-fallback) | same tokenizer |
+| Norm / positions / embeddings | RMSNorm, RoPE, tied | same |
+
+Common facts:
+
 | | |
 |---|---|
 | Developer | Aila Company Solutions |
 | Model type | Decoder-only transformer (causal language model) |
-| Parameters | 10,877,184 (~10.88M), default config |
-| Context length | 512 tokens |
-| Vocabulary | 8,192 tokens (SentencePiece BPE, byte-fallback) |
 | Precision | fp32 training-compatible; bf16/fp16 autocast supported |
 | License | Apache 2.0 (code); see `datasets/README.md` for data licenses |
-| Languages | Primarily English (byte-fallback tokenizer handles any UTF-8 input without loss) |
+| Languages | Primarily English. The byte-fallback tokenizer round-trips any UTF-8 (Portuguese included) losslessly, and 2.0's fine-tuning includes basic pt-BR greetings/identity phrases — but the pretraining corpus is English-only, so genuine Portuguese fluency is out of scope at this scale. |
+
+Both parameter counts are measured programmatically (`sum(p.numel())`,
+reproducible via `scripts/count_params.py`), not inferred from configs.
+The trained context is 256 tokens for both generations: on CPU (no
+flash-attention kernel) seq-512 training would have put a single 2.0
+epoch past 9 hours; the requested 4096-token context is not feasible on
+CPU at this scale.
 
 ## Aila Company Solutions
 

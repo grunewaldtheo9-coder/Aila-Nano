@@ -258,25 +258,83 @@ that mutates a plain `{"conversation_id": ..., "agent": ...}` dict — kept
 deliberately free of any global state so it's trivially testable (see
 `tests/test_chat.py`).
 
+## Global knowledge (`knowledge/`) — Aila 2.0
+
+User-independent question/answer knowledge, stored entirely outside the
+model's weights (SQLite: `knowledge/data/aila_knowledge.db`). Three
+tables: `knowledge` (validated facts with language, category, confidence,
+source URLs/titles, verification state, created/updated/last-verified
+timestamps, use count, version), `knowledge_candidates` (extracted but
+not yet validated — never served), and `web_cache` (raw search results
+keyed by normalized query, TTL-bounded).
+
+`KnowledgeBase` adds the behavior: relevance-gated `lookup` (same
+deterministic lexical gate as user memory — an empty result is the real
+"Aila doesn't know this yet" signal), `best_direct_answer` (relevant +
+confident + not conflicted), and `remember_answer` with dedup (same
+question + agreeing answer → metadata refresh, no duplicate row) and
+conflict handling (same question + disagreeing answer → existing row
+marked `conflicted` and excluded from serving; the newcomer is parked as
+a candidate — an existing fact is never silently overwritten).
+
+Privacy invariant: nothing in `knowledge/` accepts a user/session id at
+all — user memories structurally cannot leak into global knowledge at
+this layer, and `memory/` never writes here automatically.
+
+## Web research (`webresearch/`) — Aila 2.0
+
+`SerperClient` (stdlib urllib; typed errors for auth/rate-limit/timeout;
+the API key comes from `SERPER_API_KEY` only and never appears in logs
+or error messages) + `quality.py` (transparent domain-tier source
+ranking; sanitization that strips control characters, truncates, and
+rejects prompt-injection-patterned text outright) + `ResearchPipeline`:
+
+```
+query → cache? → Serper → rank sources → extract answer
+      (answer box > knowledge graph > corroborated snippet)
+      → confidence (documented additive model, capped at 0.95)
+      → dedup/store via KnowledgeBase (or park as candidate)
+      → ResearchOutcome
+```
+
+Every external failure degrades to `ok=False` with a reason — the
+pipeline never raises, and no unsanitized web text ever leaves it. Web
+content is DATA: it is only ever placed in the `[WEB]` block of the
+system prompt, never interpreted as instructions, and recognizable
+injection strings are dropped before storage.
+
+## Tool routing (`tools/router.py`) — Aila 2.0
+
+A deterministic decision layer that runs before generation on every turn
+(rules, not model-driven function calling — a ~20M model cannot reliably
+emit structured tool calls). First match wins:
+
+1. **Arithmetic** → exact calculator answer (`tools/calculator.py`,
+   AST-whitelist evaluation, EN+PT word operators, no `eval`).
+2. **Stored knowledge** → a relevant, confident, non-conflicted fact is
+   answered directly (offline, no API call).
+3. **Web research** → only for factual questions the knowledge base
+   missed, when Serper is configured. High confidence → direct answer
+   (stored for next time); medium → `[WEB]` context for generation.
+4. **Nothing** → plain model generation.
+
+Identity/self questions and chit-chat are never routed to the web; the
+router never raises (any failure degrades to plain generation); memory
+commands are intercepted earlier in `agents/base.py`.
+
 ## Extensibility (`tools/`) — future roadmap
 
 `tools/base.py` defines a minimal `Tool` interface (`name`, `description`,
 `run(**kwargs) -> str`) and `tools/registry.py` a `ToolRegistry` to hold
-them — mirroring `agents/registry.py`'s pattern on purpose, so the two
-feel like one system. **Nothing is registered here yet and nothing calls
-`Tool.run()` automatically** — Aila Nano has no function-calling training
-today. This exists so the following, when built, have one obvious shape
-to implement against instead of each needing ad-hoc integration:
+them. The router above is the policy layer; new capabilities implement
+`Tool` and get a routing rule, instead of each needing ad-hoc
+integration:
 
-- Internet search (e.g. a Serper API tool)
-- Tool calling / function calling
 - File reading beyond plain text (PDF reader)
 - Python code execution
-- Calendar access
-- Plugins
-- Voice input/output
-- Vision (image understanding)
-- Image generation
+- Calendar access, weather, maps
+- Additional search engines / embedding models / vector stores
+- Plugins, voice, vision, image generation
 
 Also not yet built, and following the same "engine stays interface-agnostic"
 principle as `chat.py`: a desktop GUI, a mobile app, and a web

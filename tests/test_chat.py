@@ -23,6 +23,7 @@ def engine(tokenizer, tmp_path, monkeypatch):
     monkeypatch.setenv("AILA_MEMORY_FAISS", str(tmp_path / "mem.faiss"))
     monkeypatch.setenv("AILA_KNOWLEDGE_DB", str(tmp_path / "kb.db"))
     monkeypatch.setenv("AILA_KNOWLEDGE_FAISS", str(tmp_path / "kb.faiss"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_STORE_DB", str(tmp_path / "kstore.db"))
     monkeypatch.setenv("AILA_DEVICE", "cpu")
 
     eng = AilaEngine(EngineSettings())

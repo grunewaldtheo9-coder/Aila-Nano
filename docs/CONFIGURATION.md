@@ -69,6 +69,22 @@ interface, just needs these set before it starts).
 | `AILA_MEMORY_DB` / `AILA_MEMORY_FAISS` | `memory/data/aila_memory.{db,faiss}` | Conversation + long-term memory storage |
 | `AILA_KNOWLEDGE_DB` / `AILA_KNOWLEDGE_FAISS` | `vectordb/index/knowledge.{db,faiss}` | `/learn`-ed document knowledge base |
 | `AILA_DEFAULT_AGENT` | `general` | Agent `chat.py` starts with (`/agent <name>` switches at runtime) |
+| `AILA_KNOWLEDGE_STORE_DB` | `knowledge/data/aila_knowledge.db` | Global knowledge + web-research cache (SQLite) |
+| `AILA_STORAGE_BACKEND` | `sqlite` | `sqlite` (fully supported) or `firestore` (adapter only — needs `firebase-admin` + `GOOGLE_APPLICATION_CREDENTIALS`; falls back to SQLite with a warning) |
+| `SERPER_API_KEY` | *(empty)* | Serper web-search key. **Secret** — set it only in the environment or `.env` (gitignored), never in code |
+| `AILA_WEB_SEARCH_ENABLED` | `true` | Master switch for web research (no key = silently offline) |
+| `AILA_WEB_MAX_RESULTS` | `5` | Results requested per Serper search |
+| `AILA_WEB_TIMEOUT_SECONDS` | `8` | Serper request timeout |
+| `AILA_WEB_CACHE_TTL_HOURS` | `168` | How long cached web results stay valid |
+| `AILA_RETRIEVAL_TOP_K` | `3` | Max memories/snippets injected per turn |
+| `AILA_RELEVANCE_THRESHOLD` | `0.2` | Lexical-overlap gate below which nothing is injected |
+
+### .env files
+
+`chat.py` loads a `.env` file from the working directory at startup
+(`engine/env.py` — no external dependency). Real environment variables
+always win over `.env` values. Copy `.env.example` to `.env` and fill in
+your values; `.env` is gitignored and must never be committed.
 
 If neither checkpoint path exists, `AilaEngine` logs a warning and serves
 a freshly-initialized, untrained model (vocab size taken from the loaded

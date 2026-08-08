@@ -20,6 +20,7 @@ def engine(tokenizer, tmp_path, monkeypatch):
     monkeypatch.setenv("AILA_MEMORY_FAISS", str(tmp_path / "mem.faiss"))
     monkeypatch.setenv("AILA_KNOWLEDGE_DB", str(tmp_path / "kb.db"))
     monkeypatch.setenv("AILA_KNOWLEDGE_FAISS", str(tmp_path / "kb.faiss"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_STORE_DB", str(tmp_path / "kstore.db"))
     monkeypatch.setenv("AILA_DEVICE", "cpu")
 
     eng = AilaEngine(EngineSettings())
@@ -48,15 +49,23 @@ def test_progress_callback_reports_each_loading_stage(tokenizer, tmp_path, monke
     monkeypatch.setenv("AILA_MEMORY_FAISS", str(tmp_path / "mem.faiss"))
     monkeypatch.setenv("AILA_KNOWLEDGE_DB", str(tmp_path / "kb.db"))
     monkeypatch.setenv("AILA_KNOWLEDGE_FAISS", str(tmp_path / "kb.faiss"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_STORE_DB", str(tmp_path / "kstore.db"))
     monkeypatch.setenv("AILA_DEVICE", "cpu")
 
     messages: list[str] = []
     eng = AilaEngine(EngineSettings(), on_progress=messages.append)
     eng.close()
 
-    for stage in ("Loading tokenizer...", "Loading model...", "Loading memory...", "Loading FAISS...", "Loading agents..."):
+    for stage in (
+        "Loading tokenizer...",
+        "Loading model...",
+        "Loading memory...",
+        "Loading FAISS...",
+        "Loading knowledge base...",
+        "Loading agents...",
+    ):
         assert stage in messages
-    assert messages.count("OK") == 5
+    assert messages.count("OK") == 6
 
 
 def test_chat_roundtrip_and_history(engine):

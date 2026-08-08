@@ -36,9 +36,16 @@ from webresearch.serper import (
 logger = logging.getLogger(__name__)
 
 # Portuguese detection: cheap and transparent. Accented characters common
-# in pt-BR plus a few high-frequency Portuguese function words.
+# in pt-BR; strong markers are words that are distinctively Portuguese
+# (one occurrence is enough); weak markers are shared/ambiguous function
+# words that only count in pairs.
 _PT_CHARS = set("ãõáéíóúâêôàç")
-_PT_WORDS = {"quem", "como", "onde", "quando", "porque", "por", "que", "qual", "é", "são", "foi", "não", "sim", "você", "para"}
+_PT_STRONG_WORDS = {
+    "quem", "qual", "quais", "quanto", "quanta", "onde", "quando", "porque",
+    "você", "voce", "obrigado", "obrigada", "fundou", "criou",
+    "significa", "chama", "mora", "gosta", "fala",
+}
+_PT_WEAK_WORDS = {"como", "por", "que", "foi", "sim", "para", "de", "da", "do", "uma", "um", "os", "as"}
 
 
 def detect_language(text: str) -> str:
@@ -46,7 +53,9 @@ def detect_language(text: str) -> str:
     if any(c in _PT_CHARS for c in lowered):
         return "pt"
     words = set(re.findall(r"[a-zà-ÿ]+", lowered))
-    return "pt" if len(words & _PT_WORDS) >= 2 else "en"
+    if words & _PT_STRONG_WORDS:
+        return "pt"
+    return "pt" if len(words & _PT_WEAK_WORDS) >= 2 else "en"
 
 
 def normalize_query(query: str) -> str:
