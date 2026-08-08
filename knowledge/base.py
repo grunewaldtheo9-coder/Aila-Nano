@@ -25,7 +25,7 @@ import logging
 from dataclasses import dataclass
 
 from knowledge.store import KnowledgeStore
-from memory.lexical import lexical_overlap_score
+from memory.lexical import has_distinctive_overlap, lexical_overlap_score
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +74,19 @@ class KnowledgeBase:
                 continue
             relevance = lexical_overlap_score(query, row["question"])
             if relevance < threshold:
+                continue
+            # Score alone is not enough to *serve* an answer: two short
+            # questions about different subjects can clear the threshold
+            # on a shared asking verb alone ("Who created Samsung?" vs
+            # "Who created Hames Eventos" scored 0.5 on "created" and
+            # returned the Samsung fact). Require a shared term that
+            # actually identifies the subject.
+            if not has_distinctive_overlap(query, row["question"]):
+                logger.debug(
+                    "knowledge id=%s scored %.2f but shares no distinctive term; skipping",
+                    row["id"],
+                    relevance,
+                )
                 continue
             items.append(
                 KnowledgeItem(

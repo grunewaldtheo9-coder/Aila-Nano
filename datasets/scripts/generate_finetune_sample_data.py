@@ -44,8 +44,21 @@ EXAMPLES: list[tuple[str, str, str, str]] = [
         "",
         "1. Improves cardiovascular health.\n2. Boosts mood and reduces stress.\n3. Increases energy levels and sleep quality.",
     ),
+    # Greetings are the single most common opening message, and a small
+    # model does not generalize from one canonical form: with only
+    # "Hello!" and "Hi there." trained, a bare "Hi" fell through to
+    # freeform generation and produced story fragments (reported from
+    # real use). Each common variant is trained explicitly.
     ("general", "Hello!", "", "Hello! How can I help you today?"),
+    ("general", "Hi", "", "Hi! How can I help you today?"),
+    ("general", "Hi!", "", "Hi! How can I help you today?"),
+    ("general", "Hey", "", "Hey! What can I help you with?"),
+    ("general", "Hey there!", "", "Hey there! How can I help?"),
+    ("general", "Yo", "", "Hi! What can I help you with?"),
+    ("general", "Hello there", "", "Hello there! How can I help you today?"),
     ("general", "Hi, how are you?", "", "I'm doing well, thanks for asking! What can I help you with?"),
+    ("general", "How are you?", "", "I'm doing well, thanks! What can I help you with?"),
+    ("general", "How's it going?", "", "Going well, thanks! What can I help you with?"),
     ("general", "Good morning!", "", "Good morning! What can I help you with today?"),
     ("general", "Thank you for your help!", "", "You're welcome! Let me know if there's anything else I can help with."),
     ("general", "That's all, goodbye.", "", "Goodbye! Have a great day."),

@@ -361,6 +361,82 @@ def test_corrupted_database_raises_a_recognizable_error(tmp_path):
         KnowledgeStore(str(corrupt))
 
 
+def test_knowledge_is_not_served_for_a_different_subject(kb):
+    """Reported by a real user: after researching 'Who created Samsung?',
+    asking 'Who created Hames Eventos' returned the Samsung answer. The
+    only shared word was 'created', which scored 0.5 against a 0.45 serve
+    threshold — a confidently wrong answer about a completely different
+    entity, which is the exact failure this architecture exists to
+    prevent."""
+    kb.store.add_knowledge(
+        "Who created Samsung?",
+        "Founded in 1938 by Lee Byung-chul, Samsung diversified into many sectors.",
+        confidence=0.9,
+    )
+    for other in (
+        "Who created Hames Eventos",
+        "Who created ''Hames Eventos''?",
+        "Who created Nintendo?",
+        "Who founded Toyota?",
+        "Who made the Eiffel Tower?",
+    ):
+        assert kb.best_direct_answer(other) is None, (
+            f"{other!r} was answered with the Samsung fact — sharing only a generic "
+            f"asking verb must never be enough to serve stored knowledge."
+        )
+
+    # Legitimate rephrasings of the SAME question must still resolve.
+    for same in ("Who created Samsung?", "Who founded Samsung?", "Who made Samsung?"):
+        assert kb.best_direct_answer(same) is not None, f"{same!r} should still match"
+
+
+def test_memory_is_not_served_for_a_different_attribute(memory):
+    """The memory-side version of the same bug: a shared generic verb
+    ('called') must not let one remembered fact answer a question about a
+    different subject."""
+    memory.add_memory("my dog is called Max", category="personal_fact")
+    memory.add_memory("my name is Theo", category="identity")
+
+    assert memory.get_relevant_memories("What is my cat called?", threshold=0.5) == []
+    assert memory.get_relevant_memories("What is my job?", threshold=0.5) == []
+
+    # But attribute nouns ARE the subject for user memory — every memory
+    # belongs to the same person, so these must still match.
+    assert memory.get_relevant_memories("What is my name?", threshold=0.5)
+    assert memory.get_relevant_memories("What is my dog called?", threshold=0.5)
+
+
+@pytest.mark.parametrize(
+    "typo_message,expected_content",
+    [
+        ("rembember remember that my name is Theo", "my name is Theo"),
+        ("ok remember that I like tea", "I like tea"),
+        ("uh forget that my name is Theo", "my name is Theo"),
+    ],
+)
+def test_memory_command_survives_a_false_start(typo_message, expected_content):
+    """Reported by a real user: 'rembember remember that my name is Theo'
+    was ignored entirely (the pattern was anchored to the start of the
+    message) and fell through to the model, which emitted noise."""
+    command = parse_memory_command(typo_message)
+    assert command is not None
+    assert command.content == expected_content
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Do you remember that my name is Theo?",
+        "Do you remember my name?",
+        "Can you remember that for me?",
+    ],
+)
+def test_questions_are_not_silently_stored_as_memories(question):
+    """The false-start fallback must not turn questions into commands."""
+    command = parse_memory_command(question)
+    assert command is None or command.kind == "list"
+
+
 def test_conflicted_knowledge_is_never_served(kb):
     """Poisoning defense: once two sources disagree, the fact stops being
     served as truth until re-verified, rather than one silently winning."""

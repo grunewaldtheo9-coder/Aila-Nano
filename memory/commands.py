@@ -58,6 +58,15 @@ def _clean_content(raw: str) -> str | None:
     return content[:MAX_MEMORY_CHARS]
 
 
+# Fallback for a command that doesn't START the message, e.g. a typo or
+# false start: "rembember remember that my name is Theo". Requires the
+# explicit "remember/forget that" form, and the message must not be a
+# question — so "Do you remember that my name is Theo?" stays a question
+# rather than silently storing something.
+_EMBEDDED_REMEMBER_RE = re.compile(r"\bremember\s+that\s+(.+)$", re.IGNORECASE)
+_EMBEDDED_FORGET_RE = re.compile(r"\bforget\s+(?:that|about)\s+(.+)$", re.IGNORECASE)
+
+
 def parse_memory_command(text: str) -> MemoryCommand | None:
     """Returns a MemoryCommand if `text` matches one of the recognized
     patterns, else None (meaning: treat it as an ordinary message)."""
@@ -79,6 +88,23 @@ def parse_memory_command(text: str) -> MemoryCommand | None:
         content = _clean_content(m.group(1))
         if content:
             return MemoryCommand(kind="remember", content=content)
+
+    # Anchored patterns missed. Try the embedded form, but only for
+    # non-questions — a real user typo ("rembember remember that ...")
+    # shouldn't be silently dropped just because the message didn't
+    # start cleanly.
+    if not stripped.rstrip().endswith("?"):
+        m = _EMBEDDED_FORGET_RE.search(stripped)
+        if m:
+            content = _clean_content(m.group(1))
+            if content:
+                return MemoryCommand(kind="forget", content=content)
+
+        m = _EMBEDDED_REMEMBER_RE.search(stripped)
+        if m:
+            content = _clean_content(m.group(1))
+            if content:
+                return MemoryCommand(kind="remember", content=content)
 
     return None
 

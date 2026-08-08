@@ -25,7 +25,11 @@ import time
 
 import numpy as np
 
-from memory.lexical import lexical_overlap_score
+from memory.lexical import (
+    GENERIC_VERB_TERMS,
+    has_distinctive_overlap,
+    lexical_overlap_score,
+)
 from memory.long_term_memory import LongTermMemory
 from memory.ranking import RankingWeights, rank_memories, recency_score
 from memory.store import DEFAULT_CATEGORY
@@ -174,6 +178,14 @@ class SemanticMemory:
         for fact in self.long_term.all_memories(session_id=session_id):
             relevance = lexical_overlap_score(query, fact["content"])
             if relevance < threshold:
+                continue
+            # Same class of guard as the knowledge base, but with the
+            # verb-only term set: "my dog is called Max" must not answer
+            # "what is my cat called?" (shared term is just "called"),
+            # while "What is my name?" must still match "my name is
+            # Theo" — every memory belongs to the same person, so
+            # attribute nouns are the subject, not noise.
+            if not has_distinctive_overlap(query, fact["content"], generic=GENERIC_VERB_TERMS):
                 continue
             recency = recency_score(
                 fact["created_at"], now=now, half_life_days=weights.recency_half_life_days
