@@ -146,3 +146,60 @@ python chat.py
 ```
 
 See [docs/CONFIGURATION.md](CONFIGURATION.md) for all `AILA_*` env vars.
+
+## 6. Aila Nano 2.0 (~19.8M parameters)
+
+The 2.0 architecture is `model/config.py::nano_20m` (320d x 15 layers,
+19,796,160 parameters measured). The exact commands used for the real
+2.0 run:
+
+```bash
+# Pretrain (resumable; ~2.5-4h on CPU at ~0.66 epochs of the 17.4M-token corpus)
+python -m training.train \
+  --model-config configs/model/nano20m_real_run.yaml \
+  --train-config configs/training/pretrain_20m.yaml
+# add --resume to continue after an interruption
+
+# Instruction fine-tune (identity + general instructions + basic Portuguese)
+python -m finetuning.finetune \
+  --init-checkpoint checkpoints/pretrain_20m/best.pt \
+  --tokenizer tokenizer/artifacts/aila_nano.model \
+  --data datasets/aila_knowledge/aila_company.jsonl \
+         datasets/sample/finetune_sample.jsonl \
+         datasets/aila_knowledge/portuguese_basic.jsonl \
+  --config configs/training/finetune_20m.yaml
+
+# Benchmark any checkpoint (val loss/perplexity, identity accuracy,
+# malformed-input robustness, basic Portuguese, latency)
+python scripts/benchmark_model.py --checkpoint checkpoints/finetune_20m/best.pt
+
+# Compare generation quality across a fine-tune's checkpoint spread
+python scripts/compare_finetune_checkpoints.py \
+  --dir checkpoints/finetune_20m --tokenizer tokenizer/artifacts/aila_nano.model
+
+# Point the chat at the 2.0 checkpoint
+AILA_CHECKPOINT=checkpoints/finetune_20m/best.pt python chat.py
+```
+
+## 7. Testing the 2.0 knowledge / web / memory systems
+
+```bash
+# Full suite (model, memory, knowledge, router, web pipeline, security)
+python -m pytest
+
+# Just the 2.0 knowledge/tool/web tests (fast, no network)
+python -m pytest tests/test_knowledge_and_tools.py -v
+
+# Just the memory system
+python -m pytest tests/test_memory_system.py -v
+
+# Live Serper smoke test (requires SERPER_API_KEY in .env or the environment;
+# makes ONE real API call)
+python - << 'PY'
+from engine.env import load_env; load_env()
+import os
+from webresearch.serper import SerperClient
+r = SerperClient(os.environ["SERPER_API_KEY"]).search("Who founded Apple?")
+print(len(r.results), "results; answer box:", r.answer_box_answer)
+PY
+```

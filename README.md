@@ -2,12 +2,21 @@
 
 **An original, from-scratch small language model — built, trained, and owned by [Aila Company Solutions](docs/MODEL_CARD.md#aila-company-solutions).**
 
-Aila Nano is a decoder-only transformer with **~10.9 million parameters**
-(10,877,184 exactly at the default config — see
-[`scripts/count_params.py`](scripts/count_params.py)), designed to learn
+Aila Nano is a decoder-only transformer available in two generations —
+**1.0 at ~10.9M parameters** (10,877,184) and **2.0 at ~19.8M
+parameters** (19,796,160), both measured programmatically via
+[`scripts/count_params.py`](scripts/count_params.py) — designed to learn
 language, answer questions, generate and continue text, be fine-tuned on
 new data, and run entirely locally — CPU or GPU, no external AI API
-required.
+required for the model itself.
+
+Aila Nano 2.0 adds an external intelligence layer around the model:
+a global knowledge base with validation/deduplication, optional web
+research through Serper (with caching, source ranking, and prompt-
+injection defense), an exact-arithmetic calculator, and a deterministic
+tool router that decides per-question whether to answer from knowledge,
+research the web, calculate, or generate — while user memory stays
+strictly separated from global knowledge.
 
 Created by **Theo Grunewald Hames** and **Guilherme Grunewald Benkendorf**.
 
@@ -47,7 +56,9 @@ same engine with no changes to the model, memory, or agents. See
 | [`memory/`](memory/) | Conversation, long-term, and semantic memory with relevance ranking |
 | [`agents/`](agents/) | Four assistant personas sharing one model (General/Programming/Research/Writing) |
 | [`engine/`](engine/) | The interface-independent AI core — loads everything above, exposes `chat()`/`chat_stream()` |
-| [`tools/`](tools/) | Extension point for future capabilities (search, file reading, plugins, ...) — not yet implemented |
+| [`knowledge/`](knowledge/) | Global knowledge base: validated facts, candidates, web cache, dedup/conflict handling |
+| [`webresearch/`](webresearch/) | Serper search client, source ranking, sanitization, research pipeline |
+| [`tools/`](tools/) | Tool router + calculator; extension point for future capabilities |
 | [`chat.py`](chat.py) | The terminal chat interface — the only thing you run |
 | [`configs/`](configs/) | YAML configs for the model and training/fine-tuning runs |
 | [`scripts/`](scripts/) | Utility scripts (parameter counting, etc.) |

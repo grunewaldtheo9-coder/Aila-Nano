@@ -11,6 +11,7 @@ deliberate: interfaces are expected to come and go; the engine is not.
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -100,17 +101,28 @@ class AilaEngine:
         from webresearch.pipeline import ResearchPipeline
         from webresearch.serper import SerperClient
 
+        store = None
         if self.settings.storage_backend == "firestore":
-            logger.warning(
-                "AILA_STORAGE_BACKEND=firestore requires firebase-admin and a "
-                "service-account credential (GOOGLE_APPLICATION_CREDENTIALS); "
-                "this build supports it as an adapter only and has not been "
-                "verified against a live Firestore project. Falling back to "
-                "SQLite at %s.",
-                self.settings.knowledge_store_db,
+            from knowledge.firestore_backend import (
+                FirestoreKnowledgeStore,
+                FirestoreUnavailableError,
             )
 
-        store = KnowledgeStore(self.settings.knowledge_store_db)
+            try:
+                store = FirestoreKnowledgeStore(
+                    project_id=os.environ.get("AILA_FIREBASE_PROJECT_ID")
+                )
+                logger.warning(
+                    "Using the Firestore knowledge backend. Note: this adapter has "
+                    "not been verified against a live Firestore project by the "
+                    "Aila Nano test suite (no service-account credential is "
+                    "shipped with the repo) — monitor it closely."
+                )
+            except FirestoreUnavailableError as e:
+                logger.warning("Firestore backend unavailable (%s); falling back to SQLite.", e)
+
+        if store is None:
+            store = KnowledgeStore(self.settings.knowledge_store_db)
         base = KnowledgeBase(store)
 
         client = None
