@@ -1,1 +1,2 @@
 checkpoints/finetune_real/best.pt filter=lfs diff=lfs merge=lfs -text
+checkpoints/finetune/best.pt filter=lfs diff=lfs merge=lfs -text
