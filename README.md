@@ -175,6 +175,7 @@ Full walkthroughs: [docs/INSTALL.md](docs/INSTALL.md) ·
 - [docs/API.md](docs/API.md) — `AilaEngine` Python API reference (for building new interfaces)
 - [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — every config file and env var
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — real failure modes and how to fix them
+- [docs/GPU_TRAINING.md](docs/GPU_TRAINING.md) — training on a rented cloud GPU (costs, setup, configs)
 - [datasets/README.md](datasets/README.md) — dataset sources and licenses
 
 ## License
