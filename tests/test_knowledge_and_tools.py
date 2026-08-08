@@ -469,6 +469,121 @@ def test_agent_passes_conversation_context_to_router(tiny_model, tokenizer, tmp_
         memory.close()
 
 
+def test_router_answers_personal_questions_from_memory(tiny_model, tokenizer, tmp_path):
+    """A remembered fact is something we know exactly — the router answers
+    it deterministically instead of letting the model paraphrase it.
+    (Measured motivation: with the memory correctly retrieved and injected,
+    the 10.9M model still produced 'oovano o Grxtwaations ecameters'.)"""
+    from memory.manager import MemoryManager
+    from vectordb.embedder import AilaEmbedder
+
+    embedder = AilaEmbedder(tiny_model, tokenizer)
+    memory = MemoryManager(
+        embedder, db_path=str(tmp_path / "m.db"), faiss_path=str(tmp_path / "m.faiss")
+    )
+    try:
+        memory.add_memory("my name is Theo", category="identity")
+        memory.add_memory("my favorite color is blue", category="preference")
+        router = ToolRouter(memory=memory)
+
+        assert router.route("What is my name?").direct_reply == "Your name is Theo."
+        assert router.route("What is my name?").tool_used == "memory"
+        # Addressing Aila directly ("you") must still work for personal
+        # questions, even though the information-question gate excludes it.
+        assert router.route("Do you know my name?").direct_reply == "Your name is Theo."
+        assert (
+            router.route("What's my favorite color?").direct_reply
+            == "Your favorite color is blue."
+        )
+        # Unrelated questions and non-questions are not answered from memory.
+        assert router.route("What is photosynthesis?").direct_reply is None
+        assert router.route("Hello!").direct_reply is None
+    finally:
+        memory.close()
+
+
+def test_router_admits_when_a_personal_question_has_no_memory(tiny_model, tokenizer, tmp_path):
+    """A question about the user is answerable only from memory — no
+    amount of pretraining knows their name. With nothing stored, saying
+    so beats generating (which is guaranteed to be garbage or a
+    fabricated personal detail)."""
+    from memory.manager import MemoryManager
+    from vectordb.embedder import AilaEmbedder
+
+    embedder = AilaEmbedder(tiny_model, tokenizer)
+    memory = MemoryManager(
+        embedder, db_path=str(tmp_path / "m.db"), faiss_path=str(tmp_path / "m.faiss")
+    )
+    try:
+        router = ToolRouter(memory=memory)
+
+        result = router.route("What is my name?")
+        assert result.tool_used == "memory_miss"
+        assert "don't have that in my memory" in result.direct_reply
+
+        pt = router.route("Qual é o meu nome?")
+        assert "memória" in pt.direct_reply  # Portuguese question -> Portuguese reply
+
+        # Questions that aren't about the user still go to the model.
+        assert router.route("What is photosynthesis?").direct_reply is None
+        assert router.route("Hello!").direct_reply is None
+
+        # And once the fact exists, the real answer wins over the miss.
+        memory.add_memory("my name is Theo", category="identity")
+        assert router.route("What is my name?").direct_reply == "Your name is Theo."
+    finally:
+        memory.close()
+
+
+def test_router_does_not_answer_from_a_weakly_matching_memory(tiny_model, tokenizer, tmp_path):
+    from memory.manager import MemoryManager
+    from vectordb.embedder import AilaEmbedder
+
+    embedder = AilaEmbedder(tiny_model, tokenizer)
+    memory = MemoryManager(
+        embedder, db_path=str(tmp_path / "m.db"), faiss_path=str(tmp_path / "m.faiss")
+    )
+    try:
+        memory.add_memory("my brother's dog is called Max", category="personal_fact")
+        router = ToolRouter(memory=memory)
+        # Shares only a weak token with the memory — answering "Your
+        # brother's dog is called Max." here would be confidently wrong.
+        assert router.route("What is the capital of France?").direct_reply is None
+    finally:
+        memory.close()
+
+
+@pytest.mark.parametrize(
+    "memory_text,expected",
+    [
+        ("my name is Theo", "Your name is Theo."),
+        ("my favorite color is blue", "Your favorite color is blue."),
+        ("I am a teacher", "You are a teacher."),
+        ("I'm learning Python", "You are learning Python."),
+        ("I like tea", "You like tea."),
+        ("meu nome é Theo", "Seu nome é Theo."),
+        ("minha cor favorita é azul", "Sua cor favorita é azul."),
+        # No leading first-person pronoun -> honest, never-wrong fallback.
+        ("Ana is my sister", "You told me: Ana is my sister."),
+    ],
+)
+def test_memory_phrasing_flips_person_or_falls_back(memory_text, expected):
+    from memory.phrasing import memory_to_answer
+
+    language = "pt" if any(c in memory_text for c in "áéíóúãõç") else "en"
+    assert memory_to_answer(memory_text, language=language) == expected
+
+
+def test_memory_phrasing_never_paraphrases_the_stored_fact():
+    """The rendered answer must contain the stored content verbatim (minus
+    the leading pronoun) — this path must be incapable of fabricating."""
+    from memory.phrasing import memory_to_answer
+
+    assert "Theo" in memory_to_answer("my name is Theo")
+    assert "Ana is my sister" in memory_to_answer("Ana is my sister")
+    assert memory_to_answer("") == ""
+
+
 def test_router_never_raises(kb):
     class ExplodingKB:
         def best_direct_answer(self, q):

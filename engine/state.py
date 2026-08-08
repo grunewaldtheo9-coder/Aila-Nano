@@ -145,7 +145,7 @@ class AilaEngine:
             if client is not None
             else None
         )
-        router = ToolRouter(knowledge=base, research=research)
+        router = ToolRouter(knowledge=base, research=research, memory=self.memory)
         return store, base, router
 
     # -- loading --------------------------------------------------------

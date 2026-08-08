@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 
 from knowledge.base import KnowledgeBase
 from memory.lexical import tokenize
+from memory.phrasing import memory_to_answer
 from tools.calculator import try_calculate
 from webresearch.pipeline import ResearchPipeline, detect_language
 
@@ -42,6 +43,12 @@ logger = logging.getLogger(__name__)
 
 # Confidence at/above which a web research result is answered directly.
 WEB_DIRECT_ANSWER_CONFIDENCE = 0.7
+
+# Lexical relevance a stored memory needs before it is used as a *direct*
+# answer rather than merely injected as context. Deliberately far above
+# the injection threshold (0.2): injecting a loosely-related memory is
+# harmless, but answering with the wrong one is not.
+MEMORY_DIRECT_ANSWER_RELEVANCE = 0.5
 
 # Interrogative openers that mark a message as an information question.
 _QUESTION_OPENERS = re.compile(
@@ -55,6 +62,22 @@ _QUESTION_OPENERS = re.compile(
 # identity knowledge (or memory).
 _SELF_REFERENCE = re.compile(
     r"\b(aila|you|your|yours|você|voce|seu|sua|teu|tua)\b", re.IGNORECASE
+)
+
+# First-person possessives: a question containing one ("What is my
+# name?") asks about the *user*, which only stored memory can answer —
+# no amount of pretraining knows it. When memory has nothing, saying so
+# is the honest answer; generating is guaranteed to be either garbage or
+# a fabrication.
+_FIRST_PERSON_POSSESSIVE = re.compile(r"\b(my|mine|meu|minha|meus|minhas)\b", re.IGNORECASE)
+
+_NO_MEMORY_REPLY_EN = (
+    "I don't have that in my memory yet. You can tell me with: "
+    '"remember that ..."'
+)
+_NO_MEMORY_REPLY_PT = (
+    "Ainda não tenho isso na minha memória. Você pode me dizer com: "
+    '"remember that ..."'
 )
 
 
@@ -78,9 +101,11 @@ class ToolRouter:
         self,
         knowledge: KnowledgeBase | None = None,
         research: ResearchPipeline | None = None,
+        memory=None,  # memory.manager.MemoryManager | None
     ):
         self.knowledge = knowledge
         self.research = research
+        self.memory = memory
 
     def route(self, message: str, previous_user_message: str | None = None) -> RouteResult:
         """Decide how to handle one user message. Never raises: any
@@ -113,17 +138,45 @@ class ToolRouter:
 
         query = self._expand_follow_up(message, previous_user_message)
 
+        # 2. The user's own remembered facts. Answered deterministically
+        #    rather than injected-and-generated: the model garbles a
+        #    correctly-retrieved memory at this scale (measured), and a
+        #    remembered fact is something we know exactly. Runs before
+        #    the information-question gate because personal questions
+        #    ("Do you know my name?") legitimately address Aila directly,
+        #    which that gate excludes.
+        if self.memory is not None and self._looks_like_question(message):
+            memories = self.memory.get_relevant_memories(
+                query, k=1, threshold=MEMORY_DIRECT_ANSWER_RELEVANCE
+            )
+            if memories:
+                answer = memory_to_answer(
+                    memories[0]["content"], language=detect_language(message)
+                )
+                if answer:
+                    logger.info("memory hit id=%s", memories[0]["id"])
+                    return RouteResult(direct_reply=answer, tool_used="memory")
+
+            # A question about the user ("What is my name?") with nothing
+            # remembered: memory is the only possible source, so admit it
+            # rather than generate. Prevents both garbled output and any
+            # chance of the model inventing a personal detail.
+            if _FIRST_PERSON_POSSESSIVE.search(message):
+                language = detect_language(message)
+                reply = _NO_MEMORY_REPLY_PT if language == "pt" else _NO_MEMORY_REPLY_EN
+                return RouteResult(direct_reply=reply, tool_used="memory_miss")
+
         if not self._is_information_question(query):
             return RouteResult()
 
-        # 2. Stored global knowledge.
+        # 3. Stored global knowledge.
         if self.knowledge is not None:
             item = self.knowledge.best_direct_answer(query)
             if item is not None:
                 logger.info("knowledge hit id=%s relevance=%.2f", item.id, item.relevance)
                 return RouteResult(direct_reply=item.answer, tool_used="knowledge")
 
-        # 3. Web research.
+        # 4. Web research.
         if self.research is not None:
             outcome = self.research.research(query)
             if outcome.ok and outcome.answer:
@@ -158,13 +211,16 @@ class ToolRouter:
             return message
         return f"{previous_user_message.rstrip('?!. ')} {message}".strip()
 
+    @staticmethod
+    def _looks_like_question(message: str) -> bool:
+        return bool(_QUESTION_OPENERS.match(message)) or message.rstrip().endswith("?")
+
     def _is_information_question(self, message: str) -> bool:
         """Only factual information questions leave the model: they must
         look like a question, be substantial enough to search, and not be
         about Aila itself or the current conversation."""
         if _SELF_REFERENCE.search(message):
             return False
-        looks_like_question = bool(_QUESTION_OPENERS.match(message)) or message.rstrip().endswith("?")
-        if not looks_like_question:
+        if not self._looks_like_question(message):
             return False
         return len(tokenize(message)) >= 2
