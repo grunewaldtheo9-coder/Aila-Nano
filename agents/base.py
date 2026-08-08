@@ -11,6 +11,8 @@ from dataclasses import dataclass
 import torch
 
 from finetuning.format import format_prompt_for_inference
+from memory.commands import guess_category, parse_memory_command
+from memory.lexical import lexical_overlap_score
 from memory.manager import MemoryContext, MemoryManager
 from model.generate import DEFAULT_NO_REPEAT_NGRAM_SIZE, generate, generate_stream
 from model.transformer import AilaNanoGPT
@@ -25,6 +27,19 @@ AILA_KNOWLEDGE_PRIMER = (
 # How many knowledge-base chunks (from files indexed via `AilaEngine.learn_file`
 # / the terminal's `/learn` command) to surface as context per turn.
 KNOWLEDGE_TOP_K = 2
+
+# How much word-overlap (memory/lexical.py) an explicit "forget that X"
+# command needs against a stored memory before it's deleted. Higher than
+# the general injection threshold (memory/semantic_memory.py's
+# DEFAULT_RELEVANCE_THRESHOLD) on purpose — deleting is destructive, so a
+# vague "forget that" should say "nothing matched" rather than guess and
+# remove the wrong memory.
+FORGET_MATCH_THRESHOLD = 0.34
+
+# Cap on how many memories "what do you remember about me?" lists at once,
+# so a long-lived install with hundreds of stored facts still gets a
+# readable reply instead of a wall of text.
+LIST_MEMORIES_LIMIT = 20
 
 
 @dataclass
@@ -71,9 +86,16 @@ class Agent:
     def _build_system_prompt(self, query: str, memory_ctx: MemoryContext | None) -> str:
         prompt = self.system_prompt
 
+        # Only ever appended when memory_ctx.relevant_facts is non-empty —
+        # memory.semantic_memory.get_relevant_memories returns [] rather
+        # than "the closest thing anyway" when nothing clears the
+        # relevance threshold, so "no [MEMORY] block" is a real, reachable
+        # state precisely when no relevant memory exists (goal: never
+        # invent one). Bracketed [MEMORY]/[/MEMORY] tags keep the injected
+        # facts visually distinct from the rest of the system prompt.
         if memory_ctx and memory_ctx.relevant_facts:
             facts = "\n".join(f"- {f['content']}" for f in memory_ctx.relevant_facts)
-            prompt = f"{prompt}\n\nRelevant background you may use if helpful:\n{facts}"
+            prompt = f"{prompt}\n\n[MEMORY]\n{facts}\n[/MEMORY]"
 
         if self.knowledge and len(self.knowledge) > 0:
             hits = self.knowledge.search(query, k=KNOWLEDGE_TOP_K)
@@ -137,6 +159,47 @@ class Agent:
             self.memory.add_turn(conversation_id, "user", user_message, agent_type=self.name)
             self.memory.add_turn(conversation_id, "assistant", reply, agent_type=self.name)
 
+    # -- explicit memory commands -------------------------------------------
+
+    def _handle_memory_command(self, user_message: str) -> str | None:
+        """Deterministically handle "remember that X" / "forget that X" /
+        "what do you remember about me?" without ever calling the model —
+        the one guaranteed-zero-hallucination path in the system. Returns
+        the reply text if `user_message` was a recognized command, else
+        None (caller falls through to normal generation).
+        """
+        if not self.memory:
+            return None
+        command = parse_memory_command(user_message)
+        if command is None:
+            return None
+
+        if command.kind == "remember":
+            category = guess_category(command.content)
+            self.memory.add_memory(command.content, category=category, importance=0.8)
+            return f"Got it — I'll remember that {command.content}."
+
+        if command.kind == "forget":
+            facts = self.memory.all_memories()
+            scored = sorted(
+                facts, key=lambda f: lexical_overlap_score(command.content, f["content"]), reverse=True
+            )
+            best = scored[0] if scored else None
+            if best and lexical_overlap_score(command.content, best["content"]) >= FORGET_MATCH_THRESHOLD:
+                self.memory.delete_memory(best["id"])
+                return f"Done — I've forgotten that {best['content']}"
+            return "I don't have anything remembered that matches that."
+
+        if command.kind == "list":
+            facts = self.memory.all_memories()
+            if not facts:
+                return "I don't have anything remembered yet."
+            facts = sorted(facts, key=lambda f: f["created_at"], reverse=True)[:LIST_MEMORIES_LIMIT]
+            lines = "\n".join(f"- {f['content']}" for f in facts)
+            return f"Here's what I remember:\n{lines}"
+
+        return None
+
     # -- inference -----------------------------------------------------
 
     @torch.no_grad()
@@ -147,6 +210,12 @@ class Agent:
         settings: GenerationSettings | None = None,
         remember_turn: bool = True,
     ) -> str:
+        command_reply = self._handle_memory_command(user_message)
+        if command_reply is not None:
+            if remember_turn:
+                self._remember_turn(conversation_id, user_message, command_reply)
+            return command_reply
+
         settings = settings or self.default_settings
         input_tensor, prompt_ids = self._prepare_turn(conversation_id, user_message)
 
@@ -183,6 +252,13 @@ class Agent:
         finishes. This is what `chat.py` uses to print Aila's reply as it
         types, rather than waiting for the whole response.
         """
+        command_reply = self._handle_memory_command(user_message)
+        if command_reply is not None:
+            yield command_reply
+            if remember_turn:
+                self._remember_turn(conversation_id, user_message, command_reply)
+            return
+
         settings = settings or self.default_settings
         input_tensor, _ = self._prepare_turn(conversation_id, user_message)
 

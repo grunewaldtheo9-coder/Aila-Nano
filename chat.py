@@ -34,8 +34,15 @@ Commands:
   /new               start a new conversation (fresh memory context)
   /history           show the current conversation so far
   /remember <text>   save something to long-term memory
+  /forget <text>     remove a matching remembered fact
+  /memories          list everything currently remembered
   /learn <path>      index a local .txt/.md file into the knowledge base
   exit, quit         leave
+
+You can also just type things naturally, e.g.:
+  "Remember that my name is Theo"
+  "Forget that my name is Theo"
+  "What do you remember about me?"
 """
 
 
@@ -96,6 +103,17 @@ def handle_command(engine: AilaEngine, command: str, state: dict) -> bool:
         else:
             fact_id = engine.memory.remember_fact(arg)
             print(f"Remembered (id={fact_id}).")
+
+    elif cmd == "/forget":
+        if not arg:
+            print("Usage: /forget <something to forget>")
+        else:
+            agent = engine.get_agent(state["agent"])
+            print(agent._handle_memory_command(f"forget that {arg}"))
+
+    elif cmd == "/memories":
+        agent = engine.get_agent(state["agent"])
+        print(agent._handle_memory_command("what do you remember about me?"))
 
     elif cmd == "/learn":
         if not arg:

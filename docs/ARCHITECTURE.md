@@ -157,33 +157,71 @@ before indexing — used by `AilaEngine.learn_file` (the terminal's
 
 ## Memory (`memory/`)
 
-Three memory types, one manager:
+Memory is stored entirely *outside* the model's weights — nothing in
+`memory/` requires (or benefits from) fine-tuning. Every fact lives in
+SQLite (`memory/store.py`) with a FAISS vector alongside it
+(`memory/semantic_memory.py`, same integer ids as the SQL rows, no
+duplicated text storage); the model only ever sees a fact if it gets
+explicitly injected into that turn's system prompt as text.
+
+Three memory types, one manager (`memory/manager.py::MemoryManager`):
 
 - **Conversation memory** — the running back-and-forth of one
   `conversation_id`, stored in SQLite, rendered back into chat turns.
+  (Not currently replayed into the generation prompt — see
+  `agents/base.py::Agent._build_prompt_ids`'s comment on why: the model
+  has never been fine-tuned on multi-turn examples, and doing so
+  measurably knocked it off the assistant persona in practice.)
 - **Long-term memory** — durable facts that outlive any single
-  conversation (`remember()` / `forget()`), each with an importance
-  score.
-- **Semantic memory** — retrieves long-term facts *by meaning*: a FAISS
-  index keyed by the same ids as the long-term-facts table (no duplicated
-  text storage between SQL and FAISS).
-
-Retrieved facts are re-ranked (`memory/ranking.py`) by a weighted
-combination of semantic relevance, exponential recency decay, and
-stored importance — not relevance alone — so an old-but-critical fact
-can still outrank a recent-but-marginal one.
+  conversation. Each fact has an `id`, optional `session_id` (`None` =
+  global, visible to every session — the right default for a
+  single-user install), `content`, `category` (`identity`,
+  `preference`, `personal_fact`, `project`, `instruction`, or `other`),
+  `importance`, `created_at`, and `updated_at`. Full CRUD:
+  `add_memory` / `get_memory` / `update_memory` / `delete_memory` /
+  `clear_memories` / `all_memories`.
+- **Semantic memory** — two different retrieval calls, deliberately
+  different in how strict they are:
+  - `search_memories(query)` — broad FAISS (embedding) search, ranked by
+    a weighted combination of semantic relevance, exponential recency
+    decay, and stored importance (`memory/ranking.py`). Good for an
+    explicit "search my memories" utility; not gated by any hard cutoff.
+  - `get_relevant_memories(query)` — the one that actually feeds prompt
+    injection. Gated by **deterministic lexical word-overlap**
+    (`memory/lexical.py`), not the raw embedding score: Aila Nano's own
+    embeddings (`vectordb/embedder.py`) come from a small, imperfectly
+    trained encoder, fine for loosely ranking broad search results but
+    not something to bet "never leak an irrelevant memory" on. A fact
+    that doesn't clear the overlap threshold is never returned — empty
+    result is a real, reachable state, which is what lets the system
+    prompt correctly have *no* memory section for an unrelated question
+    instead of injecting the closest-but-wrong fact anyway.
 
 `memory/manager.py::MemoryManager.build_context()` is the single call
 agents make to get "everything relevant to say next": recent turns +
-top-ranked relevant facts. Knowledge-base hits (files indexed via
-`/learn`) are looked up separately, directly against `vectordb.SemanticIndex`,
-by `agents/base.py` — see below.
+relevance-gated facts. Knowledge-base hits (files indexed via `/learn`)
+are looked up separately, directly against `vectordb.SemanticIndex`, by
+`agents/base.py` — see below.
+
+**Explicit commands** (`memory/commands.py`) — "remember that X",
+"forget that X" / "forget about X", "what do you remember about me?" —
+are recognized by regex, not by the model: `Agent._handle_memory_command`
+checks every incoming message *before* touching the model at all, and a
+match is handled deterministically (store / delete-if-matched /
+list-and-return) without ever calling `generate()`. This is the one
+guaranteed-zero-hallucination path in the system. `forget` requires a
+stronger lexical match (`agents/base.py::FORGET_MATCH_THRESHOLD`) than
+ordinary retrieval before it deletes anything, since deleting is
+destructive — an unmatched "forget" says so instead of guessing.
+`memory/commands.py::guess_category` picks a category via keyword
+heuristics when one isn't given explicitly.
 
 ## Agents (`agents/`)
 
 `Agent` (`agents/base.py`) owns prompt construction (system prompt +
-retrieved memory facts + retrieved knowledge-base snippets + conversation
-history + new user turn → token ids), generation (via
+relevance-gated memory facts, wrapped in a `[MEMORY]...[/MEMORY]` block
+only when at least one fact clears the relevance threshold + retrieved
+knowledge-base snippets + new user turn → token ids), generation (via
 `model.generate`/`generate_stream`), and writing the turn back to memory.
 `GeneralAssistant`, `ProgrammingAssistant`, `ResearchAssistant`, and
 `WritingAssistant` subclass it with only a different `system_prompt` and

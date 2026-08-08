@@ -81,15 +81,20 @@ Direct access to the underlying stores, for interfaces that want more
 than the `chat`/`learn_file` convenience wrappers:
 
 ```python
-engine.memory.remember_fact("The user prefers concise answers.", importance=0.7)
-engine.memory.semantic.recall("What does the user prefer?")
+engine.memory.add_memory("The user prefers concise answers.", category="preference", importance=0.7)
+engine.memory.get_relevant_memories("What does the user prefer?")  # relevance-gated, for prompt injection
+engine.memory.search_memories("prefer")  # broad search, not gated
+engine.memory.update_memory(fact_id, content="The user prefers very concise answers.")
+engine.memory.delete_memory(fact_id)
 engine.memory.conversation.get_history("session-1")
 
 engine.knowledge.search("some query", k=3)
 ```
 
-See `memory/manager.py` and `vectordb/semantic_index.py` for their full
-APIs.
+See `memory/manager.py` (long-term memory CRUD + retrieval),
+`memory/commands.py` (the "remember that X" / "forget that X" / "what do
+you remember about me?" natural-language commands `Agent` handles
+automatically) and `vectordb/semantic_index.py` for their full APIs.
 
 ## `engine.is_trained -> bool`
 
