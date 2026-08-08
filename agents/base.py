@@ -185,6 +185,16 @@ class Agent:
             self.memory.add_turn(conversation_id, "user", user_message, agent_type=self.name)
             self.memory.add_turn(conversation_id, "assistant", reply, agent_type=self.name)
 
+    def _previous_user_message(self, conversation_id: str) -> str | None:
+        """The user's most recent prior turn in this conversation, used by
+        the tool router to resolve short follow-ups ("When?"). None when
+        there's no memory or no prior user turn."""
+        if not self.memory:
+            return None
+        history = self.memory.conversation.get_history(conversation_id, max_turns=6)
+        user_turns = [h["content"] for h in history if h["role"] == "user"]
+        return user_turns[-1] if user_turns else None
+
     # -- explicit memory commands -------------------------------------------
 
     def _handle_memory_command(self, user_message: str) -> str | None:
@@ -250,7 +260,10 @@ class Agent:
         # context snippets ride along into the system prompt as [WEB] data.
         web_snippets: list[str] | None = None
         if self.router is not None:
-            route = self.router.route(user_message)
+            route = self.router.route(
+                user_message,
+                previous_user_message=self._previous_user_message(conversation_id),
+            )
             if route.direct_reply is not None:
                 if remember_turn:
                     self._remember_turn(conversation_id, user_message, route.direct_reply)
@@ -316,7 +329,10 @@ class Agent:
 
         web_snippets: list[str] | None = None
         if self.router is not None:
-            route = self.router.route(user_message)
+            route = self.router.route(
+                user_message,
+                previous_user_message=self._previous_user_message(conversation_id),
+            )
             if route.direct_reply is not None:
                 yield route.direct_reply
                 if remember_turn:

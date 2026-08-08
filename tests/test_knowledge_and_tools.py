@@ -407,6 +407,68 @@ def test_router_ignores_chitchat_and_self_questions(store, kb):
     assert pipe.client.calls == 0  # none of those may hit the web
 
 
+def test_router_resolves_short_follow_up_against_previous_turn(kb):
+    # "Who founded Apple?" / "When?" — the classic follow-up. The bare
+    # "When?" carries no searchable vocabulary of its own; expansion
+    # against the previous user turn is what makes it resolvable.
+    kb.store.add_knowledge(
+        "Who founded Apple? When?",
+        "Apple was founded in 1976 by Steve Jobs, Steve Wozniak and Ronald Wayne.",
+        confidence=0.9,
+    )
+    router = ToolRouter(knowledge=kb)
+
+    result = router.route("When?", previous_user_message="Who founded Apple?")
+    assert result.tool_used == "knowledge"
+    assert "1976" in result.direct_reply
+
+    # With no prior turn there is nothing to resolve against — and the
+    # router must not invent context.
+    assert router.route("When?").direct_reply is None
+
+
+def test_router_does_not_rewrite_a_complete_question(kb):
+    # Regression: an early version measured "shortness" in *significant*
+    # tokens, so "What is photosynthesis?" (one significant token after
+    # stopword removal) was misclassified as a follow-up and silently
+    # merged with the previous question — answering about Apple instead.
+    kb.store.add_knowledge(
+        "Who founded Apple?", "Apple was founded by Steve Jobs and others.", confidence=0.9
+    )
+    router = ToolRouter(knowledge=kb)
+    result = router.route(
+        "What is photosynthesis?", previous_user_message="Who founded Apple?"
+    )
+    assert result.direct_reply is None
+
+
+def test_agent_passes_conversation_context_to_router(tiny_model, tokenizer, tmp_path):
+    from agents.registry import get_agent
+    from memory.manager import MemoryManager
+    from vectordb.embedder import AilaEmbedder
+
+    embedder = AilaEmbedder(tiny_model, tokenizer)
+    memory = MemoryManager(
+        embedder, db_path=str(tmp_path / "m.db"), faiss_path=str(tmp_path / "m.faiss")
+    )
+    try:
+        seen = {}
+
+        class RecordingRouter:
+            def route(self, message, previous_user_message=None):
+                seen["message"] = message
+                seen["previous"] = previous_user_message
+                return RouteResult()
+
+        agent = get_agent("general", tiny_model, tokenizer, memory=memory, router=RecordingRouter())
+        agent.respond("conv", "Who founded Apple?")
+        agent.respond("conv", "When?")
+        assert seen["message"] == "When?"
+        assert seen["previous"] == "Who founded Apple?"
+    finally:
+        memory.close()
+
+
 def test_router_never_raises(kb):
     class ExplodingKB:
         def best_direct_answer(self, q):

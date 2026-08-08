@@ -82,40 +82,50 @@ class ToolRouter:
         self.knowledge = knowledge
         self.research = research
 
-    def route(self, message: str) -> RouteResult:
+    def route(self, message: str, previous_user_message: str | None = None) -> RouteResult:
         """Decide how to handle one user message. Never raises: any
-        internal failure degrades to 'no routing' (plain generation)."""
+        internal failure degrades to 'no routing' (plain generation).
+
+        `previous_user_message` (the user's prior turn, if any) powers
+        follow-up resolution: a bare "When?" after "Who founded Apple?"
+        is expanded to carry the previous question's topic into knowledge
+        lookup and web research. Purely lexical and deterministic — no
+        model in the loop.
+        """
         try:
-            return self._route(message)
+            return self._route(message, previous_user_message)
         except Exception:  # noqa: BLE001 — the router must never kill a turn
             logger.exception("tool router failed; falling back to plain generation")
             return RouteResult()
 
-    def _route(self, message: str) -> RouteResult:
+    def _route(self, message: str, previous_user_message: str | None = None) -> RouteResult:
         message = (message or "").strip()
         if not message:
             return RouteResult()
 
-        # 1. Exact arithmetic.
+        # 1. Exact arithmetic (always on the raw message — "When?" is
+        #    never arithmetic, and expansion could only confuse this).
         calculated = try_calculate(message)
         if calculated is not None:
             language = detect_language(message)
             template = "O resultado é {r}." if language == "pt" else "The answer is {r}."
             return RouteResult(direct_reply=template.format(r=calculated), tool_used="calculator")
 
-        if not self._is_information_question(message):
+        query = self._expand_follow_up(message, previous_user_message)
+
+        if not self._is_information_question(query):
             return RouteResult()
 
         # 2. Stored global knowledge.
         if self.knowledge is not None:
-            item = self.knowledge.best_direct_answer(message)
+            item = self.knowledge.best_direct_answer(query)
             if item is not None:
                 logger.info("knowledge hit id=%s relevance=%.2f", item.id, item.relevance)
                 return RouteResult(direct_reply=item.answer, tool_used="knowledge")
 
         # 3. Web research.
         if self.research is not None:
-            outcome = self.research.research(message)
+            outcome = self.research.research(query)
             if outcome.ok and outcome.answer:
                 if outcome.confidence >= WEB_DIRECT_ANSWER_CONFIDENCE:
                     return RouteResult(direct_reply=outcome.answer, tool_used="web_research")
@@ -123,6 +133,30 @@ class ToolRouter:
             logger.info("web research unavailable/failed: %s", outcome.reason)
 
         return RouteResult()
+
+    def _expand_follow_up(self, message: str, previous_user_message: str | None) -> str:
+        """Resolve short follow-up questions against the previous user
+        turn: "When?" after "Who founded Apple?" becomes
+        "Who founded Apple? When?" for retrieval purposes. Only fires for
+        genuinely short, question-shaped messages whose own vocabulary is
+        too thin to search — a full question is never rewritten."""
+        if not previous_user_message:
+            return message
+        # Raw word count, NOT significant-token count: "What is
+        # photosynthesis?" strips to a single significant token but is a
+        # complete question, while a real follow-up ("When?", "E quando?")
+        # is short in raw words too. Using tokenize() here misclassified
+        # full questions as follow-ups (caught in testing).
+        if len(message.split()) > 2:
+            return message
+        looks_like_question = message.rstrip().endswith("?") or bool(
+            _QUESTION_OPENERS.match(message)
+        )
+        if not looks_like_question:
+            return message
+        if not tokenize(previous_user_message):
+            return message
+        return f"{previous_user_message.rstrip('?!. ')} {message}".strip()
 
     def _is_information_question(self, message: str) -> bool:
         """Only factual information questions leave the model: they must
