@@ -12,8 +12,6 @@ from dataclasses import dataclass
 
 import torch
 
-logger = logging.getLogger(__name__)
-
 from finetuning.format import format_prompt_for_inference
 from memory.commands import guess_category, parse_memory_command
 from memory.lexical import lexical_overlap_score
@@ -22,6 +20,8 @@ from model.generate import DEFAULT_NO_REPEAT_NGRAM_SIZE, generate, generate_stre
 from model.transformer import AilaNanoGPT
 from tokenizer.tokenizer import AilaTokenizer
 from vectordb.semantic_index import SemanticIndex
+
+logger = logging.getLogger(__name__)
 
 AILA_KNOWLEDGE_PRIMER = (
     "You are Aila Nano, a small language model created by Aila Company Solutions, "

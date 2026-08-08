@@ -7,8 +7,6 @@ tests must stay meaningful offline and in CI.
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from knowledge.base import (
@@ -19,7 +17,6 @@ from knowledge.store import KnowledgeStore
 from tools.calculator import try_calculate
 from tools.router import RouteResult, ToolRouter
 from webresearch.pipeline import (
-    ResearchOutcome,
     ResearchPipeline,
     detect_language,
     normalize_query,

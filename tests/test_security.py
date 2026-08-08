@@ -323,8 +323,6 @@ def test_valid_numeric_env_vars_are_honored(monkeypatch):
 def test_incompatible_checkpoint_is_never_loaded_silently(tiny_model, tmp_path):
     """Spec requirement: architecture/config compatibility must be
     validated — loading mismatched weights must fail loudly."""
-    import torch
-
     from model.config import GPTConfig
     from model.transformer import AilaNanoGPT
 
