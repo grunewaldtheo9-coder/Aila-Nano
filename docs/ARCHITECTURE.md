@@ -311,16 +311,35 @@ emit structured tool calls). First match wins:
 
 1. **Arithmetic** → exact calculator answer (`tools/calculator.py`,
    AST-whitelist evaluation, EN+PT word operators, no `eval`).
-2. **Stored knowledge** → a relevant, confident, non-conflicted fact is
+2. **User memory** → a strongly-matching remembered fact (relevance
+   ≥ 0.5, well above the 0.2 injection threshold) is rendered directly
+   via `memory/phrasing.py`'s deterministic pronoun flip. This tier
+   exists because measurement showed the model garbling a *correctly
+   retrieved and injected* memory; a remembered fact is known exactly,
+   so it is answered, not paraphrased. A personal question (`my`/`meu`/
+   `minha`) with no matching memory returns an honest "I don't have
+   that in my memory yet" rather than generating.
+3. **Stored knowledge** → a relevant, confident, non-conflicted fact is
    answered directly (offline, no API call).
-3. **Web research** → only for factual questions the knowledge base
+4. **Web research** → only for factual questions the knowledge base
    missed, when Serper is configured. High confidence → direct answer
    (stored for next time); medium → `[WEB]` context for generation.
-4. **Nothing** → plain model generation.
+5. **Nothing** → plain model generation.
 
-Identity/self questions and chit-chat are never routed to the web; the
-router never raises (any failure degrades to plain generation); memory
-commands are intercepted earlier in `agents/base.py`.
+Short follow-ups ("When?" after "Who founded Apple?") are expanded
+against the previous user turn before tiers 2–4, so they retrieve
+against the real topic. Identity/self questions and chit-chat are never
+routed to the web; the router never raises (any failure degrades to
+plain generation); memory commands are intercepted earlier in
+`agents/base.py`.
+
+**Why so much of the answer path is deterministic:** at ~20M parameters
+the model is a fluent-ish text generator, not a reliable fact
+repeater. Everything the system *knows exactly* — arithmetic, a
+remembered fact, a stored/researched answer — is therefore answered by
+code, and generation is reserved for open-ended language. This is the
+core architectural bet of 2.0, and it's why capability improved far more
+than the parameter count alone would predict.
 
 ## Extensibility (`tools/`) — future roadmap
 

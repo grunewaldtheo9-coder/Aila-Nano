@@ -11,12 +11,20 @@ new data, and run entirely locally — CPU or GPU, no external AI API
 required for the model itself.
 
 Aila Nano 2.0 adds an external intelligence layer around the model:
-a global knowledge base with validation/deduplication, optional web
-research through Serper (with caching, source ranking, and prompt-
-injection defense), an exact-arithmetic calculator, and a deterministic
-tool router that decides per-question whether to answer from knowledge,
-research the web, calculate, or generate — while user memory stays
-strictly separated from global knowledge.
+long-term user memory, a global knowledge base with validation and
+deduplication, optional web research through Serper (with caching,
+source ranking, and prompt-injection defense), an exact-arithmetic
+calculator, and a deterministic tool router that decides per question
+whether to answer from memory, knowledge, the web, arithmetic — or
+generate.
+
+The architectural bet: at this scale the model is a decent text
+generator but an unreliable fact repeater, so **everything the system
+knows exactly is answered by code, and generation is reserved for
+open-ended language.** Ask it `12 * 8` and you get exactly `96`; tell it
+your name and ask for it back and you get your name, verbatim, every
+time. User memory and global knowledge are kept strictly separate, so
+one user's facts can never surface for another.
 
 Created by **Theo Grunewald Hames** and **Guilherme Grunewald Benkendorf**.
 
@@ -127,17 +135,32 @@ Loading memory...
 OK
 Loading FAISS...
 OK
+Loading knowledge base...
+OK
 Loading agents...
 OK
 Ready.
 
-You: Hello
-Aila: Hello! How can I help you today?
+You: What is 12 * 8?
+Aila: The answer is 96.
+
+You: remember that my name is Theo
+Aila: Got it — I'll remember that my name is Theo.
+
+You: What is my name?
+Aila: Your name is Theo.
+
+You: Who founded Apple?
+Aila: Apple was founded by Steve Jobs, Steve Wozniak and Ronald Wayne in 1976.
 ```
 
+(That last one comes from the knowledge base once researched — the same
+question, however rephrased, is answered offline afterwards.)
+
 Type `exit` or `quit` to leave, `/help` to see the rest of the commands
-(switching agents, remembering facts, indexing a file into the knowledge
-base, and more).
+(switching agents, `/remember` `/forget` `/memories`, indexing a file
+into the knowledge base, and more). Plain-language commands work too:
+"remember that ...", "forget that ...", "what do you remember about me?"
 
 Full walkthroughs: [docs/INSTALL.md](docs/INSTALL.md) ·
 [docs/TRAINING.md](docs/TRAINING.md).
