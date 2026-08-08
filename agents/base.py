@@ -30,9 +30,16 @@ KNOWLEDGE_TOP_K = 2
 @dataclass
 class GenerationSettings:
     max_new_tokens: int = 200
-    temperature: float = 0.8
-    top_k: int | None = 40
-    top_p: float | None = 0.95
+    # A ~10.9M-param model trained on a modest instruction set has a much
+    # peakier, less reliable next-token distribution than a large model —
+    # the same temperature/top_k/top_p that reads as "reasonably creative"
+    # on a big model lets this one wander into incoherent territory well
+    # before max_new_tokens is reached (confirmed via direct comparison:
+    # the same checkpoint stays on-topic far more often at these tighter
+    # settings than at the previous temperature=0.8/top_k=40/top_p=0.95).
+    temperature: float = 0.2
+    top_k: int | None = 4
+    top_p: float | None = None
     repetition_penalty: float = 1.15
     no_repeat_ngram_size: int = DEFAULT_NO_REPEAT_NGRAM_SIZE
 
