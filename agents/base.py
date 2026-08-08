@@ -73,6 +73,7 @@ class Agent:
         memory: MemoryManager | None = None,
         knowledge: SemanticIndex | None = None,
         device: str = "cpu",
+        router=None,  # tools.router.ToolRouter | None (kept untyped to avoid an import cycle)
     ):
         self.model = model.to(device)
         self.model.eval()
@@ -80,10 +81,16 @@ class Agent:
         self.memory = memory
         self.knowledge = knowledge
         self.device = device
+        self.router = router
 
     # -- prompt construction -----------------------------------------------
 
-    def _build_system_prompt(self, query: str, memory_ctx: MemoryContext | None) -> str:
+    def _build_system_prompt(
+        self,
+        query: str,
+        memory_ctx: MemoryContext | None,
+        web_snippets: list[str] | None = None,
+    ) -> str:
         prompt = self.system_prompt
 
         # Only ever appended when memory_ctx.relevant_facts is non-empty —
@@ -97,6 +104,15 @@ class Agent:
             facts = "\n".join(f"- {f['content']}" for f in memory_ctx.relevant_facts)
             prompt = f"{prompt}\n\n[MEMORY]\n{facts}\n[/MEMORY]"
 
+        # Web research context (already sanitized by webresearch/quality.py
+        # before it can reach here). Same bracketed-data framing as
+        # [MEMORY]: retrieved text is background DATA, never instructions
+        # — and it's only present when the router found something both
+        # relevant and worth injecting.
+        if web_snippets:
+            joined = "\n".join(f"- {s}" for s in web_snippets)
+            prompt = f"{prompt}\n\n[WEB]\n{joined}\n[/WEB]"
+
         if self.knowledge and len(self.knowledge) > 0:
             hits = self.knowledge.search(query, k=KNOWLEDGE_TOP_K)
             if hits:
@@ -106,11 +122,14 @@ class Agent:
         return prompt
 
     def _build_prompt_ids(
-        self, user_message: str, memory_ctx: MemoryContext | None
+        self,
+        user_message: str,
+        memory_ctx: MemoryContext | None,
+        web_snippets: list[str] | None = None,
     ) -> list[int]:
         tok = self.tokenizer
         ids = [tok.bos_id]
-        system = self._build_system_prompt(user_message, memory_ctx)
+        system = self._build_system_prompt(user_message, memory_ctx, web_snippets=web_snippets)
         ids += [tok.system_id] + tok.encode(system) + [tok.end_turn_id]
 
         # Deliberately NOT injecting memory_ctx.history as extra
@@ -139,7 +158,10 @@ class Agent:
         return ids
 
     def _prepare_turn(
-        self, conversation_id: str, user_message: str
+        self,
+        conversation_id: str,
+        user_message: str,
+        web_snippets: list[str] | None = None,
     ) -> tuple[torch.Tensor, list[int]]:
         """Shared setup for `respond`/`respond_stream`: build memory
         context, then the prompt ids, then the input tensor. Returns
@@ -150,7 +172,7 @@ class Agent:
             if self.memory
             else None
         )
-        prompt_ids = self._build_prompt_ids(user_message, memory_ctx)
+        prompt_ids = self._build_prompt_ids(user_message, memory_ctx, web_snippets=web_snippets)
         input_tensor = torch.tensor([prompt_ids], dtype=torch.long, device=self.device)
         return input_tensor, prompt_ids
 
@@ -216,8 +238,24 @@ class Agent:
                 self._remember_turn(conversation_id, user_message, command_reply)
             return command_reply
 
+        # Tool routing (calculator / knowledge base / web research) —
+        # deterministic, runs before generation, never raises (see
+        # tools/router.py). A direct reply skips the model entirely;
+        # context snippets ride along into the system prompt as [WEB] data.
+        web_snippets: list[str] | None = None
+        if self.router is not None:
+            route = self.router.route(user_message)
+            if route.direct_reply is not None:
+                if remember_turn:
+                    self._remember_turn(conversation_id, user_message, route.direct_reply)
+                return route.direct_reply
+            if route.context_snippets:
+                web_snippets = route.context_snippets
+
         settings = settings or self.default_settings
-        input_tensor, prompt_ids = self._prepare_turn(conversation_id, user_message)
+        input_tensor, prompt_ids = self._prepare_turn(
+            conversation_id, user_message, web_snippets=web_snippets
+        )
 
         out = generate(
             self.model,
@@ -259,8 +297,21 @@ class Agent:
                 self._remember_turn(conversation_id, user_message, command_reply)
             return
 
+        web_snippets: list[str] | None = None
+        if self.router is not None:
+            route = self.router.route(user_message)
+            if route.direct_reply is not None:
+                yield route.direct_reply
+                if remember_turn:
+                    self._remember_turn(conversation_id, user_message, route.direct_reply)
+                return
+            if route.context_snippets:
+                web_snippets = route.context_snippets
+
         settings = settings or self.default_settings
-        input_tensor, _ = self._prepare_turn(conversation_id, user_message)
+        input_tensor, _ = self._prepare_turn(
+            conversation_id, user_message, web_snippets=web_snippets
+        )
 
         produced_ids: list[int] = []
         decoded_so_far = ""

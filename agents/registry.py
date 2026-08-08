@@ -34,10 +34,13 @@ def get_agent(
     memory: MemoryManager | None = None,
     knowledge: SemanticIndex | None = None,
     device: str = "cpu",
+    router=None,
 ) -> Agent:
     if agent_name not in AGENT_REGISTRY:
         raise ValueError(
             f"Unknown agent '{agent_name}'. Available agents: {', '.join(list_agents())}"
         )
     agent_cls = AGENT_REGISTRY[agent_name]
-    return agent_cls(model, tokenizer, memory=memory, knowledge=knowledge, device=device)
+    return agent_cls(
+        model, tokenizer, memory=memory, knowledge=knowledge, device=device, router=router
+    )

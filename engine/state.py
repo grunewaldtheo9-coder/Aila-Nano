@@ -71,6 +71,10 @@ class AilaEngine:
         )
         self._notify("OK")
 
+        self._notify("Loading knowledge base...")
+        self.knowledge_store, self.knowledge_base, self.router = self._build_knowledge_stack()
+        self._notify("OK")
+
         self._notify("Loading agents...")
         self._agent_cache: dict[str, Agent] = {}
         # Eagerly construct every registered agent so a misconfigured
@@ -78,6 +82,59 @@ class AilaEngine:
         for name in self.available_agents():
             self.get_agent(name)
         self._notify("OK")
+
+    def _build_knowledge_stack(self):
+        """Global knowledge base + web research + tool router.
+
+        Web research is optional at every level: no SERPER_API_KEY (or
+        AILA_WEB_SEARCH_ENABLED=false) simply means the router runs
+        without a research pipeline — knowledge lookups and the
+        calculator still work, and nothing errors. The 'firestore'
+        storage backend is accepted but requires firebase-admin +
+        GOOGLE_APPLICATION_CREDENTIALS; without them we fall back to
+        SQLite with a logged warning rather than refusing to start.
+        """
+        from knowledge.base import KnowledgeBase
+        from knowledge.store import KnowledgeStore
+        from tools.router import ToolRouter
+        from webresearch.pipeline import ResearchPipeline
+        from webresearch.serper import SerperClient
+
+        if self.settings.storage_backend == "firestore":
+            logger.warning(
+                "AILA_STORAGE_BACKEND=firestore requires firebase-admin and a "
+                "service-account credential (GOOGLE_APPLICATION_CREDENTIALS); "
+                "this build supports it as an adapter only and has not been "
+                "verified against a live Firestore project. Falling back to "
+                "SQLite at %s.",
+                self.settings.knowledge_store_db,
+            )
+
+        store = KnowledgeStore(self.settings.knowledge_store_db)
+        base = KnowledgeBase(store)
+
+        client = None
+        if self.settings.web_search_enabled and self.settings.serper_api_key:
+            client = SerperClient(
+                self.settings.serper_api_key,
+                timeout_seconds=self.settings.web_timeout_seconds,
+                max_results=self.settings.web_max_results,
+            )
+        elif self.settings.web_search_enabled:
+            logger.info("Web search enabled but SERPER_API_KEY is not set — running offline.")
+
+        research = (
+            ResearchPipeline(
+                client,
+                store,
+                base,
+                cache_ttl_seconds=self.settings.web_cache_ttl_hours * 3600,
+            )
+            if client is not None
+            else None
+        )
+        router = ToolRouter(knowledge=base, research=research)
+        return store, base, router
 
     # -- loading --------------------------------------------------------
 
@@ -122,6 +179,7 @@ class AilaEngine:
                 memory=self.memory,
                 knowledge=self.knowledge,
                 device=self.device,
+                router=self.router,
             )
         return self._agent_cache[agent_name]
 
@@ -191,6 +249,7 @@ class AilaEngine:
         self.save()
         self.memory.close()
         self.knowledge.close()
+        self.knowledge_store.close()
 
     def __enter__(self) -> AilaEngine:
         return self

@@ -23,8 +23,9 @@ import sys
 import uuid
 
 from engine import AilaEngine, EngineSettings
+from engine.env import load_env
 
-VERSION = "0.2"
+VERSION = "2.0"
 
 COMMANDS = """\
 Commands:
@@ -132,6 +133,7 @@ def handle_command(engine: AilaEngine, command: str, state: dict) -> bool:
 
 
 def main() -> int:
+    load_env()  # .env (gitignored) → os.environ; real env vars always win
     print_banner(device=EngineSettings().resolved_device())
 
     def on_progress(msg: str) -> None:
