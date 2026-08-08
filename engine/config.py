@@ -61,11 +61,15 @@ class EngineSettings:
     # in at module-import time — matters for tests, and for any process
     # that constructs EngineSettings more than once with a changed
     # environment.
+    # Prefers the 2.0 (~19.8M) checkpoint, falling back to the 1.0
+    # (~10.9M) one. An existing 1.0-only install therefore keeps working
+    # untouched, and adding the 2.0 file is all it takes to upgrade —
+    # no config edit, no reinstall.
     checkpoint_path: str = field(
-        default_factory=lambda: _env("AILA_CHECKPOINT", "checkpoints/finetune/best.pt")
+        default_factory=lambda: _env("AILA_CHECKPOINT", "checkpoints/finetune_20m/best.pt")
     )
     fallback_checkpoint_path: str = field(
-        default_factory=lambda: _env("AILA_FALLBACK_CHECKPOINT", "checkpoints/pretrain/best.pt")
+        default_factory=lambda: _env("AILA_FALLBACK_CHECKPOINT", "checkpoints/finetune/best.pt")
     )
     tokenizer_path: str = field(
         default_factory=lambda: _env("AILA_TOKENIZER", "tokenizer/artifacts/aila_nano.model")
