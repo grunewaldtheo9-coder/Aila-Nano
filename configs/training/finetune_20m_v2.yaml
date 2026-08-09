@@ -1,0 +1,20 @@
+# Aila Nano 2.0 (~19.8M params) instruction fine-tune. Same recipe that
+# produced the working 1.0 chat model (post label-shift-fix), on the
+# expanded dataset: identity facts + general instructions + basic
+# Portuguese. LR matches the 1.0 run — the shift bug, not the LR, was
+# the historical failure cause (see git history).
+epochs: 40
+batch_size: 4
+max_lr: 3.0e-5
+min_lr: 3.0e-6
+warmup_ratio: 0.05
+weight_decay: 0.01
+betas: [0.9, 0.95]
+grad_clip: 1.0
+val_fraction: 0.12
+log_interval: 20
+out_dir: checkpoints/finetune_20m_v2
+device: cpu
+seed: 1337
+keep_last_n_checkpoints: 15
+checkpoint_every_n_epochs: 3
