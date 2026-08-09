@@ -166,6 +166,13 @@ def main() -> int:
             "until you train Aila Nano. See docs/TRAINING.md.)"
         )
 
+    if not engine.web_search_active:
+        print(
+            "\n(Web search is OFF — no SERPER_API_KEY found in your .env file.\n"
+            " Aila can still chat, do maths, and use what it remembers, but it\n"
+            " cannot look up facts it wasn't trained on. Free key: serper.dev)"
+        )
+
     print("Ready.\n")
 
     state = {"conversation_id": new_conversation_id(), "agent": engine.settings.default_agent}

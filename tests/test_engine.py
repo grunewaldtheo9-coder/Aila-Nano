@@ -123,3 +123,30 @@ def test_knowledge_base_is_used_as_context_by_agents(engine, tmp_path):
     agent = engine.get_agent("general")
     prompt = agent.prompt_preview("t3", "What is Aila Nano's favorite color?")
     assert "turquoise" in prompt.lower() or "knowledge base" in prompt.lower()
+
+
+def test_engine_reports_whether_web_search_is_active(tokenizer, tmp_path, monkeypatch):
+    """Without a key the engine builds no research pipeline, and factual
+    questions quietly fall through to generation. `web_search_active`
+    makes that visible so `chat.py` can say so at startup instead of the
+    user wondering why nothing is ever looked up."""
+    monkeypatch.setenv("AILA_CHECKPOINT", str(tmp_path / "does-not-exist.pt"))
+    monkeypatch.setenv("AILA_FALLBACK_CHECKPOINT", str(tmp_path / "also-missing.pt"))
+    monkeypatch.setenv("AILA_TOKENIZER", tokenizer.model_path)
+    monkeypatch.setenv("AILA_MEMORY_DB", str(tmp_path / "mem.db"))
+    monkeypatch.setenv("AILA_MEMORY_FAISS", str(tmp_path / "mem.faiss"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_DB", str(tmp_path / "kb.db"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_FAISS", str(tmp_path / "kb.faiss"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_STORE_DB", str(tmp_path / "kstore.db"))
+    monkeypatch.setenv("AILA_DEVICE", "cpu")
+
+    monkeypatch.setenv("SERPER_API_KEY", "")
+    with AilaEngine(EngineSettings()) as engine:
+        assert engine.web_search_active is False
+
+    # A key that is merely *present* is enough to build the pipeline —
+    # whether the key still works is only discoverable by calling out,
+    # and is reported per-question by the router.
+    monkeypatch.setenv("SERPER_API_KEY", "not-a-real-key")
+    with AilaEngine(EngineSettings()) as engine:
+        assert engine.web_search_active is True

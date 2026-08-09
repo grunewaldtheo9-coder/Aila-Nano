@@ -215,6 +215,15 @@ class AilaEngine:
     def is_trained(self) -> bool:
         return self.model_loaded_from is not None
 
+    @property
+    def web_search_active(self) -> bool:
+        """True when a Serper client was actually constructed, i.e. web
+        research can run. Exposed (rather than left as a log line) so an
+        interface can tell the user up front: without it, "why can't Aila
+        look anything up?" has no visible answer, and factual questions
+        quietly fall through to generation instead."""
+        return self.router is not None and self.router.research is not None
+
     def parameter_count(self) -> int:
         return sum(p.numel() for p in self.model.parameters())
 
