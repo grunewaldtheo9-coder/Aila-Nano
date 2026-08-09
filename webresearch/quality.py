@@ -72,6 +72,114 @@ _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 MAX_SNIPPET_CHARS = 400
 
+# Search engines return snippets already cut off mid-thought, marked with
+# a trailing ellipsis ("... insurance, securities, ..."). Serving that
+# verbatim is what made Aila's answers read as unfinished — reported from
+# real use ("she doesn't say everything, making it incomplete").
+_TRAILING_ELLIPSIS = re.compile(r"[\s,;:]*(?:\.\s*\.\s*\.|…)\s*$")
+
+# A sentence ends at . ! or ? optionally followed by a closing quote or
+# bracket, and then whitespace or end-of-string. The negative lookbehind
+# skips the most common abbreviations so "Inc. was founded" isn't treated
+# as a sentence boundary.
+_SENTENCE_END = re.compile(
+    r"(?<!\bMr)(?<!\bMrs)(?<!\bDr)(?<!\bSt)(?<!\bInc)(?<!\bLtd)(?<!\bvs)"
+    r"[.!?][\"'”’)\]]?(?=\s|$)"
+)
+
+# Dangling connectives left at the end after an ellipsis is removed. Cut
+# these too — "…and" or "…including" reads more unfinished than the
+# clause that precedes them.
+_DANGLING_TAIL = re.compile(
+    r"\s+(?:and|or|but|including|such\s+as|like|with|for|from|to|of|in|on|at|by|as|"
+    r"e|ou|mas|incluindo|como|com|para|de|da|do|em|no|na|por)\s*$",
+    re.IGNORECASE,
+)
+
+# Below this, a "complete sentence" prefix is too short to be a useful
+# answer — better to repair the full text than to serve three words.
+MIN_COMPLETE_ANSWER_CHARS = 40
+
+
+def looks_truncated(text: str) -> bool:
+    """True when `text` visibly stops mid-thought — it ends in an
+    ellipsis, a comma, or a dangling connective ("... including").
+
+    Deliberately NOT "has no final period": a perfectly good answer-box
+    result ("428 million subscribers") has no terminal punctuation and is
+    complete. Only evidence of an actual cut-off counts, because this is
+    what decides whether a *different* candidate answer is preferred.
+    """
+    if not text:
+        return False
+    stripped = text.strip()
+    if _TRAILING_ELLIPSIS.search(stripped):
+        return True
+    if stripped.endswith((",", ";", ":")):
+        return True
+    return bool(_DANGLING_TAIL.search(stripped))
+
+
+def complete_sentence(text: str) -> str:
+    """Make a piece of web text read as finished.
+
+    For visibly cut-off text, two strategies in order:
+    1. If it contains a complete sentence long enough to stand on its own,
+       keep everything up to the last sentence end and drop the cut-off
+       remainder.
+    2. Otherwise (very common — a snippet is often one long unfinished
+       sentence) strip the trailing ellipsis and any dangling connective,
+       then close it with a period.
+
+    Text that isn't cut off is returned as-is apart from a final period
+    when it has no closing punctuation at all.
+
+    Never invents words: only ever removes text and adds a final '.'.
+    """
+    if not text:
+        return text
+    stripped = text.strip()
+    if not looks_truncated(stripped):
+        return _ensure_final_period(stripped)
+
+    without_ellipsis = _TRAILING_ELLIPSIS.sub("", stripped).strip()
+    if not without_ellipsis:
+        return ""
+
+    ends = list(_SENTENCE_END.finditer(without_ellipsis))
+    if ends:
+        candidate = without_ellipsis[: ends[-1].end()].strip()
+        if len(candidate) >= MIN_COMPLETE_ANSWER_CHARS:
+            return candidate
+
+    repaired = without_ellipsis
+    while True:
+        trimmed = _DANGLING_TAIL.sub("", repaired).rstrip(" ,;:")
+        if trimmed == repaired:
+            break
+        repaired = trimmed
+    repaired = repaired.rstrip(" ,;:").strip()
+    if not repaired:
+        return ""
+    return _ensure_final_period(repaired)
+
+
+def _ensure_final_period(text: str) -> str:
+    if text and not re.search(r"[.!?][\"'”’)\]]?$", text):
+        return text + "."
+    return text
+
+
+def _truncate_on_word_boundary(text: str, limit: int) -> str:
+    """Hard cap at `limit` characters without slicing a word in half."""
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    space = cut.rfind(" ")
+    if space > limit // 2:
+        cut = cut[:space]
+    return cut.rstrip(" ,;:")
+
 
 def sanitize_snippet(text: str) -> str | None:
     """Clean one piece of untrusted web text for storage/serving.
@@ -86,7 +194,7 @@ def sanitize_snippet(text: str) -> str | None:
     for pattern in _INJECTION_PATTERNS:
         if pattern.search(cleaned):
             return None
-    return cleaned[:MAX_SNIPPET_CHARS]
+    return _truncate_on_word_boundary(cleaned, MAX_SNIPPET_CHARS)
 
 
 def domain_tier(domain: str) -> int:

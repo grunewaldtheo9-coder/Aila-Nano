@@ -37,9 +37,11 @@ datasets/cache/
 # --- Vector DB / memory ---
 vectordb/index/*.faiss
 vectordb/index/*.pkl
+vectordb/index/*.db
 !vectordb/index/.gitkeep
 memory/data/*.db
 memory/data/*.sqlite3
+memory/data/*.faiss
 !memory/data/.gitkeep
 
 # --- Env / secrets ---

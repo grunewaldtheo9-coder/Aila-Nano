@@ -10,21 +10,35 @@ future capabilities; the router is just the policy deciding which one
 runs.
 
 Routing policy per user message (first match wins):
-1. Arithmetic  → exact calculator answer (never let the model guess math).
-2. Knowledge   → a relevant, confident, non-conflicted stored fact
+1. Small talk  → fixed reply for short conversational filler ("ok",
+                 "thanks", "bro"). See tools/smalltalk.py.
+2. Arithmetic  → exact calculator answer (never let the model guess math).
+3. Memory      → the user's own remembered facts, phrased deterministically.
+4. Identity    → questions about Aila itself, answered from a fact table
+                 (tools/identity.py) rather than generated.
+5. Knowledge   → a relevant, confident, non-conflicted stored fact
                  answers directly. (Cheapest, fully offline.)
-3. Web research→ only for factual-information questions the knowledge
+6. Web research→ only for factual-information questions the knowledge
                  base couldn't answer, when a Serper client is
-                 configured. High-confidence result answers directly
-                 (and was stored by the pipeline for next time);
-                 medium-confidence results are returned as context
-                 snippets for the model instead.
-4. Nothing     → plain model generation (possibly with snippets).
+                 configured. The result is always served as text; see
+                 below for why it is never handed to the model.
+7. Nothing     → plain model generation.
 
-The router never answers identity/self questions ("who created you") or
-chit-chat from the web — those belong to the model's own fine-tuned
-knowledge. Memory commands ("remember that...") are intercepted earlier,
-in agents/base.py, and never reach the router.
+Why web results are never summarized by the model: at ~20M parameters,
+generation given retrieved snippets does not summarize them, it
+overwrites them. Real transcripts had "Who created Hames Eventos?" come
+back as "I'm no other company to help a fun day at a time." with correct
+snippets sitting in the prompt. So a research result is served verbatim
+(hedged when confidence is low), and when research genuinely finds
+nothing the router says so instead of letting the model invent an
+answer. `RouteResult.context_snippets` remains part of the contract for
+callers/future larger models, but the router no longer populates it from
+web research.
+
+The router never sends identity/self questions ("who created you") to
+the web — the web doesn't know what Aila Nano is. Memory commands
+("remember that...") are intercepted earlier, in agents/base.py, and
+never reach the router.
 """
 
 from __future__ import annotations
@@ -37,6 +51,8 @@ from knowledge.base import KnowledgeBase
 from memory.lexical import tokenize
 from memory.phrasing import memory_to_answer
 from tools.calculator import try_calculate
+from tools.identity import match_identity_question
+from tools.smalltalk import match_smalltalk
 from webresearch.pipeline import ResearchPipeline, detect_language
 
 logger = logging.getLogger(__name__)
@@ -79,6 +95,53 @@ _NO_MEMORY_REPLY_PT = (
     "Ainda não tenho isso na minha memória. Você pode me dizer com: "
     '"remember that ..."'
 )
+
+# Prefix for a web result the pipeline was not confident about. The
+# answer is still shown (it is far better than anything generation would
+# produce) but it is labelled so the user can weigh it.
+_HEDGE_EN = "I'm not fully certain, but here's what I found: {answer}"
+_HEDGE_PT = "Não tenho certeza total, mas foi isto que encontrei: {answer}"
+
+# Said when web research ran and genuinely came back with nothing. The
+# alternative — generating — produced confident nonsense in real use, so
+# admitting the miss is the honest and more useful reply.
+_NO_ANSWER_EN = (
+    "I looked that up but couldn't find a reliable answer. "
+    "Try rephrasing it, or adding a bit more detail."
+)
+_NO_ANSWER_PT = (
+    "Pesquisei, mas não encontrei uma resposta confiável. "
+    "Tente reformular a pergunta ou dar mais detalhes."
+)
+
+# Said when the search itself could not be performed. Split by cause,
+# because the user's next move differs: a rejected key needs replacing, a
+# rate limit needs waiting, a network error needs a retry. Reported in
+# plain language — no status codes, no key material.
+_SEARCH_ERROR_REPLIES: dict[str, tuple[str, str]] = {
+    "auth_failed": (
+        "My web search key isn't being accepted right now, so I can't look "
+        "that up. It usually means the key needs replacing or has run out of "
+        "free searches — get a new one at serper.dev and put it in your .env "
+        "file as SERPER_API_KEY.",
+        "Minha chave de busca na web não está sendo aceita, então não consigo "
+        "pesquisar isso. Normalmente isso quer dizer que a chave precisa ser "
+        "trocada ou que as buscas gratuitas acabaram — pegue uma nova em "
+        "serper.dev e coloque no arquivo .env como SERPER_API_KEY.",
+    ),
+    "rate_limited": (
+        "I've hit the web search limit for now. Please try that question "
+        "again in a little while.",
+        "Atingi o limite de buscas na web por enquanto. Tente essa pergunta "
+        "novamente daqui a pouco.",
+    ),
+    "search_failed": (
+        "I couldn't reach the web to look that up just now. Please try again "
+        "in a moment.",
+        "Não consegui acessar a web para pesquisar isso agora. Tente "
+        "novamente em instantes.",
+    ),
+}
 
 
 @dataclass
@@ -128,17 +191,26 @@ class ToolRouter:
         if not message:
             return RouteResult()
 
-        # 1. Exact arithmetic (always on the raw message — "When?" is
+        language = detect_language(message)
+
+        # 1. Conversational filler ("ok", "thanks", "bro"). Exact-phrase
+        #    only (tools/smalltalk.py), so anything with real content
+        #    falls straight through.
+        filler = match_smalltalk(message, language=language)
+        if filler is not None:
+            intent, reply = filler
+            return RouteResult(direct_reply=reply, tool_used=f"smalltalk:{intent}")
+
+        # 2. Exact arithmetic (always on the raw message — "When?" is
         #    never arithmetic, and expansion could only confuse this).
         calculated = try_calculate(message)
         if calculated is not None:
-            language = detect_language(message)
             template = "O resultado é {r}." if language == "pt" else "The answer is {r}."
             return RouteResult(direct_reply=template.format(r=calculated), tool_used="calculator")
 
         query = self._expand_follow_up(message, previous_user_message)
 
-        # 2. The user's own remembered facts. Answered deterministically
+        # 3. The user's own remembered facts. Answered deterministically
         #    rather than injected-and-generated: the model garbles a
         #    correctly-retrieved memory at this scale (measured), and a
         #    remembered fact is something we know exactly. Runs before
@@ -150,9 +222,7 @@ class ToolRouter:
                 query, k=1, threshold=MEMORY_DIRECT_ANSWER_RELEVANCE
             )
             if memories:
-                answer = memory_to_answer(
-                    memories[0]["content"], language=detect_language(message)
-                )
+                answer = memory_to_answer(memories[0]["content"], language=language)
                 if answer:
                     logger.info("memory hit id=%s", memories[0]["id"])
                     return RouteResult(direct_reply=answer, tool_used="memory")
@@ -162,28 +232,69 @@ class ToolRouter:
             # rather than generate. Prevents both garbled output and any
             # chance of the model inventing a personal detail.
             if _FIRST_PERSON_POSSESSIVE.search(message):
-                language = detect_language(message)
                 reply = _NO_MEMORY_REPLY_PT if language == "pt" else _NO_MEMORY_REPLY_EN
                 return RouteResult(direct_reply=reply, tool_used="memory_miss")
+
+        # 4. Questions about Aila itself. Answered from a fact table
+        #    rather than generated: these are the questions the project
+        #    most needs right, the web cannot answer them, and generation
+        #    shredded them in real use. Runs after memory so anything the
+        #    user explicitly told Aila still wins.
+        identity = match_identity_question(message, language=language)
+        if identity is not None:
+            intent, answer = identity
+            return RouteResult(direct_reply=answer, tool_used=f"identity:{intent}")
 
         if not self._is_information_question(query):
             return RouteResult()
 
-        # 3. Stored global knowledge.
+        # 5. Stored global knowledge.
         if self.knowledge is not None:
             item = self.knowledge.best_direct_answer(query)
             if item is not None:
                 logger.info("knowledge hit id=%s relevance=%.2f", item.id, item.relevance)
                 return RouteResult(direct_reply=item.answer, tool_used="knowledge")
 
-        # 4. Web research.
+        # 6. Web research. Whatever comes back is served as text — see
+        #    the module docstring for why the model never gets to
+        #    rewrite it.
         if self.research is not None:
             outcome = self.research.research(query)
+
             if outcome.ok and outcome.answer:
                 if outcome.confidence >= WEB_DIRECT_ANSWER_CONFIDENCE:
                     return RouteResult(direct_reply=outcome.answer, tool_used="web_research")
-                return RouteResult(context_snippets=outcome.snippets[:2], tool_used="web_research")
+                hedge = _HEDGE_PT if language == "pt" else _HEDGE_EN
+                return RouteResult(
+                    direct_reply=hedge.format(answer=outcome.answer),
+                    tool_used="web_research_hedged",
+                )
+
+            # No answer could be extracted, but the search did return
+            # readable text: show the best snippet rather than nothing.
+            if outcome.snippets:
+                hedge = _HEDGE_PT if language == "pt" else _HEDGE_EN
+                return RouteResult(
+                    direct_reply=hedge.format(answer=outcome.snippets[0]),
+                    tool_used="web_snippet",
+                )
+
             logger.info("web research unavailable/failed: %s", outcome.reason)
+            error_reply = _SEARCH_ERROR_REPLIES.get(outcome.reason or "")
+            if error_reply is not None:
+                return RouteResult(
+                    direct_reply=error_reply[1] if language == "pt" else error_reply[0],
+                    tool_used=f"web_error:{outcome.reason}",
+                )
+            if outcome.reason != "web_search_disabled":
+                # The web was reached and had nothing. Generating here is
+                # how "Mrbest has how much subscribers on Youtube?" became
+                # a paragraph about Aila Company Solutions.
+                reply = _NO_ANSWER_PT if language == "pt" else _NO_ANSWER_EN
+                return RouteResult(direct_reply=reply, tool_used="web_no_answer")
+            # web_search_disabled: no API key configured. Fall through to
+            # plain generation so an offline install still behaves the way
+            # it did before web research existed.
 
         return RouteResult()
 

@@ -53,7 +53,8 @@ that teaches the model this fact about itself.
 
 ## Out of scope / limitations
 
-- **Scale-appropriate expectations.** At ~10.9M parameters, Aila Nano has
+- **Scale-appropriate expectations.** At ~19.8M parameters (2.0; ~10.9M
+  for the 1.0 preset), Aila Nano has
   roughly 1/100th to 1/1000th the parameters of contemporary
   general-purpose chat models. It will not match their world knowledge,
   reasoning depth, or robustness to adversarial prompts. It is well

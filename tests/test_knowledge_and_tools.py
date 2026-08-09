@@ -394,13 +394,17 @@ def test_router_falls_back_to_web_research(store, kb):
     assert result2.tool_used == "knowledge"
 
 
-def test_router_ignores_chitchat_and_self_questions(store, kb):
+def test_router_never_sends_chitchat_or_self_questions_to_the_web(store, kb):
     pipe = ResearchPipeline(FakeSerperClient(response=_apple_response()), store, kb)
     router = ToolRouter(knowledge=kb, research=pipe)
-    assert router.route("Hello!").direct_reply is None
-    assert router.route("Who created you?").direct_reply is None       # self-reference
-    assert router.route("Quem criou você?").direct_reply is None       # self-reference (pt)
-    assert router.route("Tell me a story about a dragon").direct_reply is None  # not a question
+
+    # Answered locally and deterministically...
+    assert router.route("Hello!").tool_used == "smalltalk:greeting"
+    assert router.route("Who created you?").tool_used == "identity:creator"
+    assert router.route("Quem criou você?").tool_used == "identity:creator"
+    # ...and freeform requests still go to the model.
+    assert router.route("Tell me a story about a dragon").direct_reply is None
+
     assert pipe.client.calls == 0  # none of those may hit the web
 
 
@@ -492,9 +496,10 @@ def test_router_answers_personal_questions_from_memory(tiny_model, tokenizer, tm
             router.route("What's my favorite color?").direct_reply
             == "Your favorite color is blue."
         )
-        # Unrelated questions and non-questions are not answered from memory.
+        # Unrelated questions are not answered from memory.
         assert router.route("What is photosynthesis?").direct_reply is None
-        assert router.route("Hello!").direct_reply is None
+        # A greeting is small talk, not a memory lookup.
+        assert router.route("Hello!").tool_used == "smalltalk:greeting"
     finally:
         memory.close()
 
@@ -523,7 +528,7 @@ def test_router_admits_when_a_personal_question_has_no_memory(tiny_model, tokeni
 
         # Questions that aren't about the user still go to the model.
         assert router.route("What is photosynthesis?").direct_reply is None
-        assert router.route("Hello!").direct_reply is None
+        assert router.route("Hello!").tool_used == "smalltalk:greeting"
 
         # And once the fact exists, the real answer wins over the miss.
         memory.add_memory("my name is Theo", category="identity")
@@ -592,9 +597,11 @@ def test_router_never_raises(kb):
     assert result.direct_reply is None  # degraded to plain generation
 
 
-def test_router_medium_confidence_returns_context_not_direct_answer(store, kb):
+def test_router_hedges_a_medium_confidence_web_answer(store, kb):
     # No answer box, single source, no corroboration -> snippet extraction
-    # at confidence 0.5 -> context snippets, not a direct reply.
+    # at confidence 0.5. The result is still served as text (a ~20M model
+    # asked to summarize snippets overwrites them instead), but labelled
+    # so the user knows it is not certain.
     response = SearchResponse(
         query="q",
         results=[
@@ -609,8 +616,11 @@ def test_router_medium_confidence_returns_context_not_direct_answer(store, kb):
     pipe = ResearchPipeline(FakeSerperClient(response=response), store, kb)
     router = ToolRouter(knowledge=kb, research=pipe)
     result = router.route("When was the founding of Apple?")
-    assert result.direct_reply is None
-    assert result.context_snippets  # injected as [WEB] data instead
+    assert result.tool_used == "web_research_hedged"
+    assert "not fully certain" in result.direct_reply
+    assert "1976" in result.direct_reply
+    # The model is never asked to rewrite web text at this scale.
+    assert result.context_snippets == []
 
 
 # -- agent integration --------------------------------------------------------

@@ -26,11 +26,19 @@ from dataclasses import dataclass, field
 from knowledge.base import KnowledgeBase
 from knowledge.store import KnowledgeStore
 from memory.lexical import lexical_overlap_score, tokenize
-from webresearch.quality import domain_tier, rank_sources, sanitize_snippet
+from webresearch.quality import (
+    complete_sentence,
+    domain_tier,
+    looks_truncated,
+    rank_sources,
+    sanitize_snippet,
+)
 from webresearch.serper import (
     SearchResponse,
+    SerperAuthError,
     SerperClient,
     SerperError,
+    SerperRateLimitError,
 )
 
 logger = logging.getLogger(__name__)
@@ -104,9 +112,9 @@ class ResearchPipeline:
         language = detect_language(query)
         cache_key = normalize_query(query)
 
-        response, from_cache = self._get_results(query, cache_key, language)
+        response, from_cache, failure = self._get_results(query, cache_key, language)
         if response is None:
-            return ResearchOutcome(ok=False, reason="search_failed")
+            return ResearchOutcome(ok=False, reason=failure or "search_failed")
         if not response.results and not response.answer_box_answer and not response.knowledge_graph_description:
             return ResearchOutcome(ok=False, reason="no_results")
 
@@ -118,11 +126,22 @@ class ResearchPipeline:
 
     def _get_results(
         self, query: str, cache_key: str, language: str
-    ) -> tuple[SearchResponse | None, bool]:
+    ) -> tuple[SearchResponse | None, bool, str | None]:
+        """Returns (response, from_cache, failure_reason). Exactly one of
+        response / failure_reason is set.
+
+        The failure reason is specific rather than a single
+        "search_failed" because the caller turns it into what the user
+        reads, and the three cases need different advice: a rejected key
+        needs a new key, a rate limit needs waiting, a network error
+        needs a retry.
+        """
         cached = self.store.get_cached_web_results(cache_key, self.cache_ttl_seconds)
         if cached is not None:
             logger.info("web cache hit for %r", cache_key)
-            return SearchResponse.from_dict(cached[0]) if cached else None, True
+            if cached:
+                return SearchResponse.from_dict(cached[0]), True, None
+            return None, True, "no_results"
 
         try:
             started = time.time()
@@ -130,12 +149,20 @@ class ResearchPipeline:
             logger.info(
                 "serper search ok: %d results in %.2fs", len(response.results), time.time() - started
             )
+        except SerperAuthError as e:
+            # The key is missing, revoked, or out of credits. Never logs
+            # the key itself.
+            logger.warning("serper rejected the API key: %s", e)
+            return None, False, "auth_failed"
+        except SerperRateLimitError as e:
+            logger.warning("serper rate limited: %s", e)
+            return None, False, "rate_limited"
         except SerperError as e:
             logger.warning("serper search failed: %s", e)
-            return None, False
+            return None, False, "search_failed"
 
         self.store.cache_web_results(cache_key, [response.to_dict()])
-        return response, False
+        return response, False, None
 
     def _extract(self, query: str, response: SearchResponse, language: str) -> ResearchOutcome:
         ranked = rank_sources(response.results)
@@ -152,33 +179,46 @@ class ResearchPipeline:
             urls.append(r.link)
             titles.append(sanitize_snippet(r.title) or r.domain)
 
-        answer: str | None = None
-        confidence = 0.0
+        # Candidate answers, best-sourced first. Collected rather than
+        # short-circuited so a *complete* lower-tier candidate can be
+        # preferred over a visibly cut-off higher-tier one — search
+        # engines routinely return answer boxes and snippets that stop
+        # mid-list ("...insurance, securities, ..."), and serving those
+        # verbatim is what made Aila's answers read as unfinished
+        # (reported from real use).
+        candidates: list[tuple[str, float]] = []
 
         if response.answer_box_answer or response.answer_box_snippet:
-            answer = sanitize_snippet(response.answer_box_answer or response.answer_box_snippet)
-            confidence = 0.8
-        elif response.knowledge_graph_description:
+            boxed = sanitize_snippet(response.answer_box_answer or response.answer_box_snippet)
+            if boxed:
+                candidates.append((boxed, 0.8))
+        if response.knowledge_graph_description:
             desc = sanitize_snippet(response.knowledge_graph_description)
             if desc:
                 title = sanitize_snippet(response.knowledge_graph_title or "") or ""
-                answer = f"{title}: {desc}" if title else desc
-                confidence = 0.7
+                candidates.append((f"{title}: {desc}" if title else desc, 0.7))
+        # Snippets that actually share vocabulary with the question (an
+        # off-topic snippet is worse than admitting failure).
+        for s in snippets:
+            if lexical_overlap_score(query, s) >= 0.2:
+                candidates.append((s, 0.5))
 
-        if answer is None and snippets:
-            # Fall back to the best-ranked snippet that actually shares
-            # vocabulary with the question (an off-topic snippet is worse
-            # than admitting failure).
-            for s in snippets:
-                if lexical_overlap_score(query, s) >= 0.2:
-                    answer = s
-                    confidence = 0.5
-                    break
+        answer: str | None = None
+        confidence = 0.0
+        if candidates:
+            complete = [c for c in candidates if not looks_truncated(c[0])]
+            # Among complete candidates keep source order (answer box
+            # first); if every candidate is cut off, take the best-sourced
+            # one and repair it below.
+            answer, confidence = (complete or candidates)[0]
+            answer = complete_sentence(answer)
+            if not answer:
+                answer = None
 
         if answer is None:
             return ResearchOutcome(
                 ok=False,
-                snippets=snippets,
+                snippets=[complete_sentence(s) for s in snippets],
                 source_urls=urls,
                 source_titles=titles,
                 reason="no_extractable_answer",
@@ -221,6 +261,8 @@ class ResearchPipeline:
             confidence=confidence,
             source_urls=urls[:3],
             source_titles=titles[:3],
-            snippets=snippets[:3],
+            # Repaired too: the router may serve a snippet verbatim when
+            # no answer could be extracted, so it must read as finished.
+            snippets=[complete_sentence(s) for s in snippets[:3]],
             stored=stored,
         )

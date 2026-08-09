@@ -309,9 +309,17 @@ A deterministic decision layer that runs before generation on every turn
 (rules, not model-driven function calling — a ~20M model cannot reliably
 emit structured tool calls). First match wins:
 
-1. **Arithmetic** → exact calculator answer (`tools/calculator.py`,
+1. **Small talk** (`tools/smalltalk.py`) → a fixed reply for short
+   conversational filler ("ok", "thanks", "bro", "tchau"). Exact match on
+   a normalized phrase, never on a question, never on anything longer
+   than three words, so a real message that merely *begins* with filler
+   ("ok so what is the capital of France?") passes straight through.
+   Exists because every filler word the model wasn't fine-tuned on
+   collapsed onto the nearest trained example — "Bro", "Ok" and "nice!"
+   all came back as "Hi! How can I help you today?" in real use.
+2. **Arithmetic** → exact calculator answer (`tools/calculator.py`,
    AST-whitelist evaluation, EN+PT word operators, no `eval`).
-2. **User memory** → a strongly-matching remembered fact (relevance
+3. **User memory** → a strongly-matching remembered fact (relevance
    ≥ 0.5, well above the 0.2 injection threshold) is rendered directly
    via `memory/phrasing.py`'s deterministic pronoun flip. This tier
    exists because measurement showed the model garbling a *correctly
@@ -319,18 +327,54 @@ emit structured tool calls). First match wins:
    so it is answered, not paraphrased. A personal question (`my`/`meu`/
    `minha`) with no matching memory returns an honest "I don't have
    that in my memory yet" rather than generating.
-3. **Stored knowledge** → a relevant, confident, non-conflicted fact is
+4. **Identity** (`tools/identity.py`) → questions about Aila itself
+   ("who created you?", "what can you do?", "how many parameters do you
+   have?") are answered from a fact table. These are the questions the
+   project most needs right and the ones the web *cannot* answer, which
+   previously left generation as the only path: "Who created Aila
+   Company Solutions?" came back as "Aila Company Solutions is the em
+   Hameswald Benkendorf, to help answer questions" — right facts,
+   shredded. Matching is intent-based and refuses anything containing a
+   first-person possessive, so "do you remember my name?" stays a memory
+   question. `tests/test_identity_facts_consistency.py` pins the table
+   to the identity training data and to the measured parameter count.
+5. **Stored knowledge** → a relevant, confident, non-conflicted fact is
    answered directly (offline, no API call).
-4. **Web research** → only for factual questions the knowledge base
-   missed, when Serper is configured. High confidence → direct answer
-   (stored for next time); medium → `[WEB]` context for generation.
-5. **Nothing** → plain model generation.
+6. **Web research** → only for factual questions the knowledge base
+   missed, when Serper is configured. The result is **always served as
+   text**: high confidence → the answer verbatim (and stored for next
+   time); lower confidence, or an extraction miss with usable snippets →
+   the same text behind an explicit "I'm not fully certain, but here's
+   what I found". If the search succeeded and genuinely found nothing,
+   the router says so; if the search itself failed it reports *why* in
+   plain language (rejected key / rate limit / unreachable), with no
+   status codes and no key material. Only "no API key configured" falls
+   through to generation, so an offline install behaves exactly as it did
+   before web research existed.
+7. **Nothing** → plain model generation.
+
+**Why the model never summarizes web results:** at ~20M parameters,
+generation given retrieved snippets does not summarize them, it
+overwrites them. With correct snippets sitting in the prompt, "Who
+created Hames Eventos?" produced "I'm no other company to help a fun day
+at a time." `RouteResult.context_snippets` remains part of the contract
+(and `agents/base.py` still renders a `[WEB]` block from it) for future
+larger models, but web research no longer populates it.
+
+**Answer completeness** (`webresearch/quality.py`): search engines return
+snippets already cut off mid-thought ("…insurance, securities, …").
+`looks_truncated` / `complete_sentence` detect that and repair it — keep
+the last complete sentence if one is long enough, otherwise drop the
+trailing ellipsis and any dangling connective and close with a period.
+Repair only ever *removes* words. The pipeline also prefers a complete
+lower-tier candidate over a cut-off answer box, so a clean Wikipedia
+snippet beats a truncated answer box.
 
 Short follow-ups ("When?" after "Who founded Apple?") are expanded
-against the previous user turn before tiers 2–4, so they retrieve
-against the real topic. Identity/self questions and chit-chat are never
-routed to the web; the router never raises (any failure degrades to
-plain generation); memory commands are intercepted earlier in
+against the previous user turn before the retrieval tiers, so they
+retrieve against the real topic. Identity/self questions and chit-chat
+are never routed to the web; the router never raises (any failure
+degrades to plain generation); memory commands are intercepted earlier in
 `agents/base.py`.
 
 **Why so much of the answer path is deterministic:** at ~20M parameters

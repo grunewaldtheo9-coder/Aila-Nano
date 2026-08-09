@@ -129,17 +129,30 @@ Also note the router only researches **factual questions**: it never
 sends chit-chat, non-questions, or anything mentioning Aila/"you" to the
 web.
 
-### `Serper rejected the API key (HTTP 401/403)`
+### Aila says "My web search key isn't being accepted right now"
 
-Wrong or revoked key. Regenerate at [serper.dev](https://serper.dev) and
-update `.env`. If your key was ever pasted into a chat, a commit, or a
-screenshot, treat it as compromised and rotate it.
+Serper rejected the key (HTTP 401/403). Three common causes: the key is
+wrong, it was revoked, or the free searches ran out. Regenerate at
+[serper.dev](https://serper.dev) and update `.env`. If your key was ever
+pasted into a chat, a commit, or a screenshot, treat it as compromised
+and rotate it regardless.
 
-### `Serper rate limit reached (HTTP 429)`
+Aila tells you this in the chat rather than guessing an answer, because
+retrying a rejected key never succeeds — the fix is a new key.
 
-Free-tier quota exhausted. Aila degrades to the knowledge base and the
-model automatically — nothing crashes. Answers already researched stay
-available offline.
+### Aila says "I've hit the web search limit for now"
+
+Free-tier quota exhausted (HTTP 429). Wait and retry. Answers already
+researched stay available offline from the knowledge base, so previously
+asked questions keep working.
+
+### Aila says "I looked that up but couldn't find a reliable answer"
+
+The search ran and came back with nothing usable. This is deliberate: at
+~20M parameters, generating an answer here produces confident nonsense
+(the reported case, "Mrbest has how much subscribers on Youtube?", came
+back as a paragraph about Aila Company Solutions). Rephrase with more
+detail or correct spelling and ask again.
 
 ### The same question hits the API twice
 
