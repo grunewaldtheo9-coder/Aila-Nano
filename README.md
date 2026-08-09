@@ -159,7 +159,8 @@ question, however rephrased, is answered offline afterwards.)
 
 Type `exit` or `quit` to leave, `/help` to see the rest of the commands
 (switching agents, `/remember` `/forget` `/memories`, indexing a file
-into the knowledge base, and more). Plain-language commands work too:
+into the knowledge base, and `/support` / `/feedback` to report a
+problem to Aila Company Solutions). Plain-language commands work too:
 "remember that ...", "forget that ...", "what do you remember about me?"
 
 Full walkthroughs: [docs/INSTALL.md](docs/INSTALL.md) ·

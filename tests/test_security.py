@@ -444,3 +444,31 @@ def test_conflicted_knowledge_is_never_served(kb):
     kb.remember_answer("Who founded Apple?", "It was founded by aliens in 1823.", 0.9)
     assert kb.lookup("Who founded Apple?") == []
     assert kb.best_direct_answer("Who founded Apple?") is None
+
+
+def test_support_report_never_contains_the_api_key(monkeypatch, tokenizer, tmp_path):
+    """`/support` exists to be pasted into an email to a third party.
+    Anything it prints is, by design, about to leave the user's machine —
+    so it must report the *presence* of a key, never the key."""
+    from engine import AilaEngine, EngineSettings
+    from engine.support import build_support_report, support_message
+
+    monkeypatch.setenv("AILA_CHECKPOINT", str(tmp_path / "missing.pt"))
+    monkeypatch.setenv("AILA_FALLBACK_CHECKPOINT", str(tmp_path / "also-missing.pt"))
+    monkeypatch.setenv("AILA_TOKENIZER", tokenizer.model_path)
+    monkeypatch.setenv("AILA_MEMORY_DB", str(tmp_path / "mem.db"))
+    monkeypatch.setenv("AILA_MEMORY_FAISS", str(tmp_path / "mem.faiss"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_DB", str(tmp_path / "kb.db"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_FAISS", str(tmp_path / "kb.faiss"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_STORE_DB", str(tmp_path / "kstore.db"))
+    monkeypatch.setenv("AILA_DEVICE", "cpu")
+    monkeypatch.setenv("SERPER_API_KEY", FAKE_KEY)
+
+    with AilaEngine(EngineSettings()) as engine:
+        report = build_support_report(engine, version="2.0", note="something broke")
+        full = support_message(engine, version="2.0", note="something broke")
+
+    assert FAKE_KEY not in report
+    assert FAKE_KEY not in full
+    # It should still say whether web search is configured at all.
+    assert "Web search        : on" in report

@@ -123,8 +123,12 @@ grep SERPER_API_KEY .env          # key present?
 echo $AILA_WEB_SEARCH_ENABLED     # not "false"?
 ```
 
-With no key the engine logs `Web search enabled but SERPER_API_KEY is
-not set — running offline` at startup and simply runs without the tool.
+With no key, `chat.py` says so at startup — `Web search is OFF — no
+SERPER_API_KEY found in your .env file` — and simply runs without the
+tool. Factual questions then fall through to generation, which at this
+scale means unreliable answers; that trade-off keeps an offline install
+behaving as it did before web research existed.
+
 Also note the router only researches **factual questions**: it never
 sends chit-chat, non-questions, or anything mentioning Aila/"you" to the
 web.
@@ -264,3 +268,22 @@ import chat; chat.main()
 Look for `turn path=tool:calculator latency=0.001s`,
 `knowledge hit id=3 relevance=0.71`, `web cache hit`, or
 `serper search failed: ...`.
+
+---
+
+## Still stuck?
+
+Type `/support` in the chat. It prints a ready-to-paste report — version,
+Python, operating system, device, parameter count, whether a checkpoint
+loaded, whether web search is on — plus the address to send it to:
+
+```
+/support
+/feedback aila repeats herself when I say "ok"
+```
+
+Email: **mailailacompanysolutions@gmail.com**
+
+The report deliberately says only *whether* a Serper key is configured,
+never the key itself — everything it prints is about to be pasted into
+an email. Nothing is sent automatically; Aila never emails on its own.

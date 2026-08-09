@@ -270,15 +270,13 @@ class ToolRouter:
                     tool_used="web_research_hedged",
                 )
 
-            # No answer could be extracted, but the search did return
-            # readable text: show the best snippet rather than nothing.
-            if outcome.snippets:
-                hedge = _HEDGE_PT if language == "pt" else _HEDGE_EN
-                return RouteResult(
-                    direct_reply=hedge.format(answer=outcome.snippets[0]),
-                    tool_used="web_snippet",
-                )
-
+            # NOTE: deliberately no "serve the top snippet anyway"
+            # fallback here. `reason="no_extractable_answer"` means the
+            # pipeline already rejected every snippet for sharing too
+            # little vocabulary with the question, so the snippets that
+            # remain are precisely the off-topic ones — serving one
+            # answers "Who is the president of Brazil?" with a cake
+            # recipe. An admitted miss is the better answer.
             logger.info("web research unavailable/failed: %s", outcome.reason)
             error_reply = _SEARCH_ERROR_REPLIES.get(outcome.reason or "")
             if error_reply is not None:

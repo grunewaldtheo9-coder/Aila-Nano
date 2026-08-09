@@ -241,6 +241,59 @@ def test_youtube_subscriber_question_reaches_the_web(store, kb):
     assert result.tool_used.startswith("web")
 
 
+def test_router_never_serves_an_off_topic_snippet(store, kb):
+    """Found while bug-hunting the fix itself. `no_extractable_answer`
+    means the pipeline already rejected every snippet for sharing too
+    little vocabulary with the question — so a "show the top snippet
+    anyway" fallback answers "Who is the president of Brazil?" with a
+    cake recipe. Admitting the miss is the better answer."""
+    response = SearchResponse(
+        query="q",
+        results=[
+            SearchResult(
+                title="Cake recipes",
+                link="https://example.com/cake",
+                snippet="Preheat the oven to 180 degrees and beat the eggs with sugar.",
+                position=1,
+            )
+        ],
+    )
+    client = FakeSerperClient(response=response)
+    router = ToolRouter(knowledge=kb, research=ResearchPipeline(client, store, kb))
+
+    result = router.route("Who is the president of Brazil?")
+    assert result.tool_used == "web_no_answer"
+    assert "oven" not in result.direct_reply
+    assert "couldn't find" in result.direct_reply
+
+
+def test_our_own_length_cap_does_not_create_an_incomplete_answer(store, kb):
+    """Also found while bug-hunting: MAX_SNIPPET_CHARS cut a long snippet
+    mid-sentence, and because the cut left no ellipsis the repair step
+    couldn't tell and simply bolted a period on the end — reproducing the
+    reported complaint from our own code rather than the search engine's."""
+    long_snippet = (
+        "Samsung was founded in 1938. " * 12
+    ) + "It later expanded into shipbuilding, insurance and electronics manufacturing"
+    response = SearchResponse(
+        query="who created samsung",
+        results=[
+            SearchResult(
+                title="Samsung - Wikipedia",
+                link="https://en.wikipedia.org/wiki/Samsung",
+                snippet=long_snippet,
+                position=1,
+            )
+        ],
+    )
+    pipe = ResearchPipeline(FakeSerperClient(response=response), store, kb)
+    out = pipe.research("Who created Samsung?")
+
+    assert out.ok
+    assert "..." not in out.answer
+    assert out.answer.endswith("1938.")
+
+
 def test_router_admits_a_miss_instead_of_generating(store, kb):
     empty = SearchResponse(query="q", results=[])
     router = ToolRouter(knowledge=kb, research=ResearchPipeline(FakeSerperClient(empty), store, kb))
@@ -355,6 +408,28 @@ def test_short_filler_messages_get_distinct_replies():
 def test_filler_phrases_map_to_the_right_intent(message, intent):
     match = match_smalltalk(message)
     assert match is not None and match[0] == intent
+
+
+def test_greeting_questions_are_still_small_talk():
+    """The question-mark guard is there to keep "Ok?" and "Nice?" on the
+    normal question path — but it also silently blocked the most common
+    opening line of all, sending "How are you?" back to generation."""
+    for message in ("How are you?", "How's it going?", "Tudo bem?", "Beleza?"):
+        match = match_smalltalk(message)
+        assert match is not None and match[0] == "how_are_you", message
+
+    # ...while genuine questions still fall through.
+    assert match_smalltalk("Ok?") is None
+    assert match_smalltalk("Nice?") is None
+
+
+def test_every_phrase_in_the_table_is_reachable():
+    """A phrase the normalizer can never produce is dead weight that
+    silently stops working — "how s it going" was exactly that."""
+    from tools.smalltalk import _PHRASE_TABLE
+
+    unreachable = [p for p in _PHRASE_TABLE if match_smalltalk(p) is None]
+    assert unreachable == []
 
 
 def test_portuguese_filler_gets_a_portuguese_reply():

@@ -25,6 +25,7 @@ import uuid
 
 from engine import AilaEngine, EngineSettings
 from engine.env import load_env
+from engine.support import SUPPORT_EMAIL, support_message
 
 VERSION = "2.0"
 
@@ -39,6 +40,8 @@ Commands:
   /forget <text>     remove a matching remembered fact
   /memories          list everything currently remembered
   /learn <path>      index a local .txt/.md file into the knowledge base
+  /support           how to report a problem to Aila Company Solutions
+  /feedback <text>   same, with your message included
   exit, quit         leave
 
 You can also just type things naturally, e.g.:
@@ -99,23 +102,39 @@ def handle_command(engine: AilaEngine, command: str, state: dict) -> bool:
         for turn in history:
             print(f"  {turn['role']}: {turn['content']}")
 
+    # /remember and /forget deliberately go through the *same*
+    # deterministic handler as typing "remember that ..." in chat. Going
+    # straight to the memory API instead let the two paths drift: the
+    # slash command skipped the empty-content guard (so "/forget it"
+    # printed the literal word "None") and the MAX_MEMORY_CHARS cap (so a
+    # very long "/remember ..." was stored whole and later crowded the
+    # question out of the context window).
     elif cmd == "/remember":
         if not arg:
             print("Usage: /remember <something to remember>")
         else:
-            fact_id = engine.memory.remember_fact(arg)
-            print(f"Remembered (id={fact_id}).")
+            agent = engine.get_agent(state["agent"])
+            print(
+                agent._handle_memory_command(f"remember that {arg}")
+                or "I couldn't tell what to remember there. Try: /remember my name is Theo"
+            )
 
     elif cmd == "/forget":
         if not arg:
             print("Usage: /forget <something to forget>")
         else:
             agent = engine.get_agent(state["agent"])
-            print(agent._handle_memory_command(f"forget that {arg}"))
+            print(
+                agent._handle_memory_command(f"forget that {arg}")
+                or "I couldn't tell what to forget there. Try: /forget my name is Theo"
+            )
 
     elif cmd == "/memories":
         agent = engine.get_agent(state["agent"])
         print(agent._handle_memory_command("what do you remember about me?"))
+
+    elif cmd in ("/support", "/feedback"):
+        print(support_message(engine, VERSION, note=arg))
 
     elif cmd == "/learn":
         if not arg:
@@ -145,6 +164,7 @@ def main() -> int:
     except FileNotFoundError as e:
         print(f"\nCould not start: {e}")
         print("See docs/TRAINING.md to train a tokenizer/model first.")
+        print(f"Still stuck? Email {SUPPORT_EMAIL}")
         return 1
     except sqlite3.DatabaseError as e:
         # A corrupted memory/knowledge database used to kill startup with
@@ -158,6 +178,7 @@ def main() -> int:
             "  vectordb/index/knowledge.db\n"
             "  knowledge/data/aila_knowledge.db"
         )
+        print(f"Still stuck? Email {SUPPORT_EMAIL}")
         return 1
 
     if not engine.is_trained:

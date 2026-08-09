@@ -253,10 +253,33 @@ The *only* thing you run (`python chat.py`). Prints the startup banner,
 constructs one `AilaEngine`, then loops on `input("You: ")`, streaming
 each reply through `engine.chat_stream(...)`. Slash commands
 (`/agents`, `/agent <name>`, `/new`, `/history`, `/remember <text>`,
-`/learn <path>`) are handled by `handle_command()`, a small dispatcher
+`/forget <text>`, `/memories`, `/learn <path>`, `/support`,
+`/feedback <text>`) are handled by `handle_command()`, a small dispatcher
 that mutates a plain `{"conversation_id": ..., "agent": ...}` dict — kept
 deliberately free of any global state so it's trivially testable (see
 `tests/test_chat.py`).
+
+`/remember` and `/forget` delegate to the same
+`Agent._handle_memory_command` that the typed forms use, rather than
+calling the memory API directly. Two implementations of one behaviour
+drifted exactly as you would expect: the slash form skipped the
+empty-content guard (`/forget it` printed the literal word `None`) and
+the `MAX_MEMORY_CHARS` cap (an unbounded memory later crowds the
+question out of a 512-token context).
+
+`/support` and `/feedback <text>` print the Aila Company Solutions
+support address plus a paste-ready diagnostic report built by
+`engine/support.py` — version, Python, OS, device, parameter count,
+whether a checkpoint loaded, whether web search is on, and how many
+facts are remembered. It reports whether a Serper key is *configured*,
+never the key itself: the report exists to be pasted into an email, so
+everything in it is about to leave the user's machine
+(`tests/test_security.py` asserts this). Nothing is ever sent
+automatically — shipping SMTP credentials with the app would be both a
+secret-handling problem and a spam vector.
+
+Startup also states plainly when web search is off, rather than leaving
+it in a log line the user never sees.
 
 ## Global knowledge (`knowledge/`) — Aila 2.0
 

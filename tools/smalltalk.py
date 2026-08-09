@@ -20,8 +20,10 @@ Design constraints that keep this safe:
   message that merely *starts* with "ok" ("ok so what is the capital of
   France?") is never intercepted.
 - Only messages of at most MAX_SMALLTALK_WORDS words are considered.
-- Questions are never intercepted (a trailing "?" disqualifies), so
-  "Nice?" or "Ok?" keep going to the normal question path.
+- A trailing "?" disqualifies every intent except the ones that are
+  *inherently* questions ("How are you?", "Tudo bem?"). So "Ok?" and
+  "Nice?" keep going to the normal question path, while the most common
+  greeting question of all still gets a real answer.
 - Each intent has its own distinct reply, so different inputs visibly
   produce different outputs.
 """
@@ -30,11 +32,14 @@ from __future__ import annotations
 
 import re
 
-# Longest phrase in the table is 3 words ("that is all"). Anything longer
-# is real content, not filler.
-MAX_SMALLTALK_WORDS = 3
+# Longest phrase in the table is 4 words once normalized ("How's it
+# going" -> "how s it going", because stripping the apostrophe splits the
+# contraction). Counted on the *normalized* phrase rather than the raw
+# message so that asymmetry can't quietly make a table entry
+# unreachable. Anything longer is real content, not filler.
+MAX_SMALLTALK_WORDS = 4
 
-_PUNCT = re.compile(r"[!.,~\-–—…\"'’]+")
+_PUNCT = re.compile(r"[!.,~\-–—…\"'’?]+")
 _REPEATED_CHARS = re.compile(r"(.)\1{2,}")
 _FULL_COLLAPSE = re.compile(r"(.)\1+")
 
@@ -159,6 +164,10 @@ for _intent, _phrases, _en, _pt in _INTENTS:
     for _phrase in _phrases:
         _PHRASE_TABLE.setdefault(_phrase, (_intent, _en, _pt))
 
+# Intents whose phrases are questions in their own right, and so stay
+# matchable with a trailing "?".
+_QUESTION_INTENTS: frozenset[str] = frozenset({"how_are_you"})
+
 # Phrases that are unambiguously Portuguese. The general language
 # detector (webresearch.pipeline.detect_language) works on sentence-level
 # evidence and can't call a single bare word like "beleza", so the table
@@ -186,13 +195,11 @@ def match_smalltalk(message: str, language: str = "en") -> tuple[str, str] | Non
     MAX_SMALLTALK_WORDS words.
     """
     raw = (message or "").strip()
-    if not raw or raw.endswith("?"):
-        return None
-    if len(raw.split()) > MAX_SMALLTALK_WORDS:
+    if not raw:
         return None
 
     phrase = normalize(raw)
-    if not phrase:
+    if not phrase or len(phrase.split()) > MAX_SMALLTALK_WORDS:
         return None
     entry = _PHRASE_TABLE.get(phrase)
     if entry is None:
@@ -204,6 +211,14 @@ def match_smalltalk(message: str, language: str = "en") -> tuple[str, str] | Non
     if entry is None:
         return None
     intent, en, pt = entry
+
+    # A question mark means the user is asking, not filling. "Ok?" and
+    # "Nice?" must reach the normal question path — but "How are you?"
+    # and "Tudo bem?" are questions *by nature*, and refusing those sent
+    # the single most common opening line back to generation.
+    if raw.rstrip().endswith("?") and intent not in _QUESTION_INTENTS:
+        return None
+
     if phrase in _PT_PHRASES:
         language = "pt"
     return intent, (pt if language == "pt" else en)

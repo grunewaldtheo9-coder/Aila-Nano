@@ -171,14 +171,23 @@ def _ensure_final_period(text: str) -> str:
 
 
 def _truncate_on_word_boundary(text: str, limit: int) -> str:
-    """Hard cap at `limit` characters without slicing a word in half."""
+    """Hard cap at `limit` characters without slicing a word in half.
+
+    Marks the result with an ellipsis when it actually cut something.
+    Without the marker, `looks_truncated` cannot tell that our own cap
+    stopped the text mid-sentence, `complete_sentence` leaves it alone,
+    and the user reads "...founded in 1938 and The." — the same
+    unfinished-answer complaint, produced by us rather than by the search
+    engine.
+    """
     if len(text) <= limit:
         return text
-    cut = text[:limit]
+    marker = "..."
+    cut = text[: max(1, limit - len(marker))]
     space = cut.rfind(" ")
     if space > limit // 2:
         cut = cut[:space]
-    return cut.rstrip(" ,;:")
+    return cut.rstrip(" ,;:") + marker
 
 
 def sanitize_snippet(text: str) -> str | None:
