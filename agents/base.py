@@ -46,6 +46,28 @@ FORGET_MATCH_THRESHOLD = 0.34
 # readable reply instead of a wall of text.
 LIST_MEMORIES_LIMIT = 20
 
+# What Aila says instead of generating freeform text, when freeform
+# generation is switched off (which it is by default — see
+# `Agent.fallback_reply`).
+NO_FREEFORM_REPLY_EN = (
+    "I'm not sure how to answer that one. I'm a small model in beta, so I'm "
+    "best at:\n"
+    "  - questions I can look up (\"Who founded Apple?\")\n"
+    "  - exact maths (\"What is 45 / 9?\")\n"
+    "  - remembering things you tell me (\"remember that my name is Theo\")\n"
+    "  - questions about myself (\"Who created you?\")\n"
+    "Try one of those, or type /help."
+)
+NO_FREEFORM_REPLY_PT = (
+    "Não sei responder isso. Sou um modelo pequeno em beta, então me saio "
+    "melhor com:\n"
+    "  - perguntas que eu posso pesquisar (\"Quem criou a Petrobras?\")\n"
+    "  - contas exatas (\"Quanto é 45 / 9?\")\n"
+    "  - lembrar coisas que você me conta (\"remember that my name is Theo\")\n"
+    "  - perguntas sobre mim (\"Quem criou você?\")\n"
+    "Tente uma dessas, ou digite /help."
+)
+
 
 @dataclass
 class GenerationSettings:
@@ -79,6 +101,7 @@ class Agent:
         knowledge: SemanticIndex | None = None,
         device: str = "cpu",
         router=None,  # tools.router.ToolRouter | None (kept untyped to avoid an import cycle)
+        allow_freeform: bool = True,
     ):
         self.model = model.to(device)
         self.model.eval()
@@ -87,6 +110,31 @@ class Agent:
         self.knowledge = knowledge
         self.device = device
         self.router = router
+        # When False, a message the router could not handle gets an honest
+        # "here is what I can actually do" reply instead of freeform
+        # generation.
+        #
+        # Measured, not assumed: sampling this checkpoint on twelve
+        # prompts it was *fine-tuned on* produced usable text three times.
+        # "Write a Python function that reverses a string." returned
+        # "Have a great day."; "What is a variable in programming?"
+        # returned "A capital do Ficoect ajudar?". At ~20M parameters
+        # trained on ~11.5M tokens, freeform generation is noise, and
+        # noise is worse than an honest answer.
+        #
+        # Defaults to True here so the class stays a plain language-model
+        # wrapper for tests and library use; `AilaEngine` sets it from
+        # configuration (AILA_ALLOW_FREEFORM, default false).
+        self.allow_freeform = allow_freeform
+
+    def _no_freeform_reply(self, user_message: str) -> str:
+        from webresearch.pipeline import detect_language
+
+        return (
+            NO_FREEFORM_REPLY_PT
+            if detect_language(user_message) == "pt"
+            else NO_FREEFORM_REPLY_EN
+        )
 
     # -- prompt construction -----------------------------------------------
 
@@ -293,6 +341,13 @@ class Agent:
             if route.context_snippets:
                 web_snippets = route.context_snippets
 
+        if not self.allow_freeform:
+            reply = self._no_freeform_reply(user_message)
+            if remember_turn:
+                self._remember_turn(conversation_id, user_message, reply)
+            logger.info("turn path=no_freeform latency=%.3fs", time.time() - started)
+            return reply
+
         settings = settings or self.default_settings
         input_tensor, prompt_ids = self._prepare_turn(
             conversation_id, user_message, web_snippets=web_snippets
@@ -359,6 +414,13 @@ class Agent:
                 return
             if route.context_snippets:
                 web_snippets = route.context_snippets
+
+        if not self.allow_freeform:
+            reply = self._no_freeform_reply(user_message)
+            yield reply
+            if remember_turn:
+                self._remember_turn(conversation_id, user_message, reply)
+            return
 
         settings = settings or self.default_settings
         input_tensor, _ = self._prepare_turn(

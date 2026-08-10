@@ -33,6 +33,7 @@ Design constraints that keep this safe:
 from __future__ import annotations
 
 import re
+import unicodedata
 
 # Longest phrase in the table is 4 words once normalized ("How's it
 # going" -> "how s it going", because stripping the apostrophe splits the
@@ -46,11 +47,25 @@ _REPEATED_CHARS = re.compile(r"(.)\1{2,}")
 _FULL_COLLAPSE = re.compile(r"(.)\1+")
 
 
+def strip_accents(text: str) -> str:
+    """"Olá" -> "ola".
+
+    Applied to both the input and the table keys, so an accented word
+    matches its unaccented spelling and vice versa. Without this, "Olá"
+    — the single most common Portuguese greeting — missed the table
+    entirely (which lists "ola") and fell through to generation, which
+    answered it with nonsense.
+    """
+    decomposed = unicodedata.normalize("NFD", text or "")
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
 def normalize(text: str) -> str:
-    """Lowercase, strip punctuation/whitespace, and collapse stretched
-    letters so "okkkk", "ok!!!" and "Ok" are one phrase. Portuguese
-    laughter ("kkkkk") collapses to "kk", which the table lists."""
-    lowered = (text or "").strip().lower()
+    """Lowercase, strip accents and punctuation/whitespace, and collapse
+    stretched letters so "okkkk", "ok!!!" and "Ok" are one phrase.
+    Portuguese laughter ("kkkkk") collapses to "kk", which the table
+    lists."""
+    lowered = strip_accents((text or "").strip().lower())
     lowered = _PUNCT.sub(" ", lowered)
     lowered = re.sub(r"\s+", " ", lowered).strip()
     return _REPEATED_CHARS.sub(r"\1\1", lowered)
@@ -123,6 +138,9 @@ _INTENTS: list[tuple[str, tuple[str, ...], str, str]] = [
             "bro", "bruh", "dude", "man", "buddy", "mate", "friend",
             "hey bro", "hey man", "yo bro",
             "mano", "cara", "velho", "brother", "irmao",
+            # Brazilian interjections, reported from real use as
+            # producing nonsense ("Bah" -> "o of its arle, like to...").
+            "bah", "ue", "eita", "poxa", "nossa", "caramba", "opa opa",
         ),
         "I'm here! What do you need?",
         "Estou aqui! Do que você precisa?",
@@ -164,7 +182,7 @@ _INTENTS: list[tuple[str, tuple[str, ...], str, str]] = [
 _PHRASE_TABLE: dict[str, tuple[str, str, str]] = {}
 for _intent, _phrases, _en, _pt in _INTENTS:
     for _phrase in _phrases:
-        _PHRASE_TABLE.setdefault(_phrase, (_intent, _en, _pt))
+        _PHRASE_TABLE.setdefault(normalize(_phrase), (_intent, _en, _pt))
 
 # Phrases that are unambiguously Portuguese. The general language
 # detector (webresearch.pipeline.detect_language) works on sentence-level
@@ -172,7 +190,8 @@ for _intent, _phrases, _en, _pt in _INTENTS:
 # answers for itself: a Portuguese greeting always gets a Portuguese
 # reply, whatever the detector said.
 _PT_PHRASES: frozenset[str] = frozenset(
-    {
+    normalize(p)
+    for p in {
         "oi", "ola", "opa", "e ai", "eai", "bom dia", "boa tarde", "boa noite",
         "fala ai", "tudo bem", "tudo bom", "como vai", "como voce esta",
         "beleza", "ta", "ta bom", "tá", "certo", "entendi", "blz",
@@ -181,6 +200,7 @@ _PT_PHRASES: frozenset[str] = frozenset(
         "muito obrigada", "mano", "cara", "velho", "irmao", "rs", "rsrs",
         "kk", "kkk", "sim", "isso", "exatamente", "nao", "não", "nada",
         "tchau", "ate logo", "adeus", "ate mais", "falou",
+        "bah", "ue", "eita", "poxa", "nossa", "caramba",
     }
 )
 

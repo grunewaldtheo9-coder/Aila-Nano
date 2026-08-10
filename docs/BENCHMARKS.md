@@ -128,3 +128,33 @@ previous weights were trained to state a false parameter count. These
 are not. The deterministic layer (identity, small talk, memory,
 arithmetic, research) is what users actually experience for those
 questions, and it is unchanged by the retrain.
+
+---
+
+## Why freeform generation is off by default
+
+Measured on the shipped weights: twelve prompts the model was
+*fine-tuned on*, sampled at its default settings, produced usable text
+three times.
+
+| Prompt (all present in the fine-tuning data) | Reply |
+|---|---|
+| "Write a Python function that reverses a string." | "Have a great day." |
+| "What is a variable in programming?" | "A capital do Ficoect ajudar?" |
+| "Tell me a joke." | "A cat pulls the cat over to their room. Anna is very happy..." |
+| "Write a short poem about rain." | "The rain pulls the rain over the town. It is not a on top of a a few d..." |
+
+An out-of-vocabulary check was tried as a garbage *detector* — score each
+reply by the fraction of words appearing in neither the training data nor
+the tokenizer's whole-word vocabulary — and **it does not work**:
+fine-tuned prompts averaged 0.24 out-of-vocabulary, untrained ones 0.16.
+There is no separation to threshold on, because generation is unreliable
+everywhere rather than only on unfamiliar input. It was not shipped.
+
+So `AILA_ALLOW_FREEFORM` defaults to `false`: a message the deterministic
+layer cannot handle gets an honest list of what Aila *can* do. That is
+not a capability being removed — the capability produced invented words.
+Set `AILA_ALLOW_FREEFORM=true` to let the model try anyway.
+
+The fix for this is more pretraining data, not a bigger safety net; see
+[MODEL_CARD.md](MODEL_CARD.md#out-of-scope--limitations).

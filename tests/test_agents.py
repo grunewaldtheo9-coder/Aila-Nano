@@ -91,3 +91,44 @@ def test_empty_knowledge_base_does_not_affect_prompt(tiny_model, tokenizer, tmp_
     agent = get_agent("general", tiny_model, tokenizer, knowledge=knowledge)
     prompt = agent.prompt_preview("c1", "Hello")
     assert "knowledge base" not in prompt.lower()
+
+
+def _agent_without_freeform(tiny_model, tokenizer):
+    from agents.registry import get_agent
+
+    return get_agent("general", tiny_model, tokenizer, allow_freeform=False)
+
+
+def test_freeform_off_gives_an_honest_reply_instead_of_generating(tiny_model, tokenizer):
+    """Measured on the real checkpoint: sampling twelve prompts it was
+    *fine-tuned on* produced usable text three times. Noise is worse than
+    an honest "here is what I can actually do"."""
+    agent = _agent_without_freeform(tiny_model, tokenizer)
+    reply = agent.respond("c1", "Make a simple HTML page called HHHHUHD", remember_turn=False)
+    assert "I'm not sure how to answer" in reply
+    assert "remember that" in reply  # points at what does work
+
+
+def test_freeform_off_also_covers_the_streaming_path(tiny_model, tokenizer):
+    """Regression: the streaming path was patched with the non-streaming
+    body, so every unroutable message raised
+    `name 'started' is not defined` instead of replying. The suite passed
+    anyway — nothing exercised chat_stream with freeform disabled."""
+    agent = _agent_without_freeform(tiny_model, tokenizer)
+    chunks = list(agent.respond_stream("c1", "FHHLYRDVJM", remember_turn=False))
+    assert chunks, "streaming must still produce a reply"
+    assert "I'm not sure how to answer" in "".join(chunks)
+
+
+def test_freeform_off_answers_in_portuguese_for_a_portuguese_message(tiny_model, tokenizer):
+    agent = _agent_without_freeform(tiny_model, tokenizer)
+    reply = agent.respond("c1", "Faça um poema sobre a chuva", remember_turn=False)
+    assert "Não sei responder isso" in reply
+
+
+def test_freeform_on_still_generates(tiny_model, tokenizer):
+    from agents.registry import get_agent
+
+    agent = get_agent("general", tiny_model, tokenizer, allow_freeform=True)
+    reply = agent.respond("c1", "Write a poem", remember_turn=False)
+    assert "I'm not sure how to answer" not in reply

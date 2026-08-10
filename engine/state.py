@@ -215,6 +215,7 @@ class AilaEngine:
                 knowledge=self.knowledge,
                 device=self.device,
                 router=self.router,
+                allow_freeform=self.settings.allow_freeform,
             )
         return self._agent_cache[agent_name]
 

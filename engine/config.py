@@ -128,6 +128,14 @@ class EngineSettings:
     study_topics_per_day: int = field(
         default_factory=lambda: _env_int("AILA_STUDY_TOPICS_PER_DAY", 3)
     )
+    # Freeform generation for anything the deterministic layer can't
+    # handle. Off by default because it is measurably noise at this scale
+    # (see agents/base.py) — an honest "here is what I can do" beats a
+    # sentence of invented words. Set AILA_ALLOW_FREEFORM=true to let the
+    # model try anyway.
+    allow_freeform: bool = field(
+        default_factory=lambda: _env_bool("AILA_ALLOW_FREEFORM", False)
+    )
     retrieval_top_k: int = field(default_factory=lambda: _env_int("AILA_RETRIEVAL_TOP_K", 3))
     relevance_threshold: float = field(
         default_factory=lambda: _env_float("AILA_RELEVANCE_THRESHOLD", 0.2)

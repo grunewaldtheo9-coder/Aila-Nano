@@ -35,6 +35,7 @@ def get_agent(
     knowledge: SemanticIndex | None = None,
     device: str = "cpu",
     router=None,
+    allow_freeform: bool = True,
 ) -> Agent:
     if agent_name not in AGENT_REGISTRY:
         raise ValueError(
@@ -42,5 +43,11 @@ def get_agent(
         )
     agent_cls = AGENT_REGISTRY[agent_name]
     return agent_cls(
-        model, tokenizer, memory=memory, knowledge=knowledge, device=device, router=router
+        model,
+        tokenizer,
+        memory=memory,
+        knowledge=knowledge,
+        device=device,
+        router=router,
+        allow_freeform=allow_freeform,
     )

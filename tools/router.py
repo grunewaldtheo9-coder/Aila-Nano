@@ -67,8 +67,16 @@ WEB_DIRECT_ANSWER_CONFIDENCE = 0.7
 MEMORY_DIRECT_ANSWER_RELEVANCE = 0.5
 
 # Interrogative openers that mark a message as an information question.
+#
+# The wh-words accept a bare "s" as well as "'s", because people drop the
+# apostrophe constantly. Without it, "whats my name" was not recognised
+# as a question at all, skipped the memory tier, and came back as
+# generated nonsense — while "what's my name" worked perfectly (reported
+# from real use). The optional "s" is deliberately NOT extended to
+# is/are/do/does: "dos" is an ordinary Portuguese word, not a question.
 _QUESTION_OPENERS = re.compile(
-    r"^\s*(who|what|when|where|which|why|how|is|are|was|were|did|does|do|"
+    r"^\s*(?:(?:who|what|when|where|why|how)(?:'s|s)?|which|"
+    r"is|are|was|were|did|does|do|"
     r"quem|o\s+que|qual|quais|quando|onde|por\s+que|como|é|são|foi|eram)\b",
     re.IGNORECASE,
 )
