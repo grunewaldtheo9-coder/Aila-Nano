@@ -76,8 +76,9 @@ _ANSWERS_EN: dict[str, str] = {
     "capabilities": (
         "I can chat, answer questions, do arithmetic exactly, remember "
         "things you tell me (say \"remember that ...\"), and look things up "
-        "on the web when a question needs current facts. I'm a small model, "
-        "so I'm best at short, direct questions."
+        "on Wikipedia and the web. Whatever I look up I keep, so it works "
+        "afterwards even with no internet. I'm a small model, so I'm best "
+        "at short, direct questions."
     ),
 }
 
@@ -109,8 +110,9 @@ _ANSWERS_PT: dict[str, str] = {
     "capabilities": (
         "Posso conversar, responder perguntas, fazer contas com exatidão, "
         "lembrar coisas que você me contar (diga \"remember that ...\") e "
-        "pesquisar na web quando a pergunta precisa de dados atuais. Sou um "
-        "modelo pequeno, então me saio melhor com perguntas curtas e diretas."
+        "pesquisar na Wikipédia e na web. O que eu pesquiso eu guardo, então "
+        "funciona depois mesmo sem internet. Sou um modelo pequeno, então me "
+        "saio melhor com perguntas curtas e diretas."
     ),
 }
 

@@ -308,7 +308,7 @@ this layer, and `memory/` never writes here automatically.
 
 Two interchangeable sources behind one pipeline:
 
-- **`WikipediaClient`** (2.1) — free, no API key, no account, no quota.
+- **`WikipediaClient`** — free, no API key, no account, no quota.
   English and Portuguese. Aila's *default* source.
 - **`SerperClient`** — Google results via serper.dev. Optional; the API
   key comes from `SERPER_API_KEY` only and never appears in logs or
@@ -471,7 +471,7 @@ the model is a fluent-ish text generator, not a reliable fact
 repeater. Everything the system *knows exactly* — arithmetic, a
 remembered fact, a stored/researched answer — is therefore answered by
 code, and generation is reserved for open-ended language. This is the
-core architectural bet of 2.0, and it's why capability improved far more
+core architectural bet of this release, and it's why capability improved far more
 than the parameter count alone would predict.
 
 ## Extensibility (`tools/`) — future roadmap

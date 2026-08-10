@@ -149,9 +149,9 @@ See [docs/CONFIGURATION.md](CONFIGURATION.md) for all `AILA_*` env vars.
 
 ## 6. The shipped model (`nano_20m`, ~19.8M parameters)
 
-The 2.0 architecture is `model/config.py::nano_20m` (320d x 15 layers,
+The shipped architecture is `model/config.py::nano_20m` (320d x 15 layers,
 19,796,160 parameters measured). The exact commands used for the real
-2.0 run:
+run that produced the shipped weights:
 
 ```bash
 # Pretrain (resumable; ~2.5-4h on CPU at ~0.66 epochs of the 17.4M-token corpus)
@@ -177,7 +177,7 @@ python scripts/benchmark_model.py --checkpoint checkpoints/finetune_20m/best.pt
 python scripts/compare_finetune_checkpoints.py \
   --dir checkpoints/finetune_20m --tokenizer tokenizer/artifacts/aila_nano.model
 
-# Point the chat at the 2.0 checkpoint
+# Point the chat at the nano_20m checkpoint
 AILA_CHECKPOINT=checkpoints/finetune_20m/best.pt python chat.py
 ```
 

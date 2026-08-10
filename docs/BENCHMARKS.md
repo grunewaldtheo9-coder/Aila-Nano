@@ -1,4 +1,7 @@
-# Benchmarks: Aila Nano 1.0 vs 2.0
+# Benchmarks: `nano_10m` vs `nano_20m`
+
+A comparison of the two *model sizes* in this repo, not of product
+releases. Aila Nano Beta ships the `nano_20m` weights.
 
 All numbers here were produced by `scripts/benchmark_model.py` on the
 machine that trained both models (4 vCPU, 15 GB RAM, CPU only), with no
@@ -12,11 +15,11 @@ python scripts/benchmark_model.py --checkpoint checkpoints/finetune_20m/best.pt
 ## Fair comparison
 
 Both models evaluated on **only the two instruction datasets both were
-fine-tuned on** (`aila_company.jsonl` + `finetune_sample.jsonl`). 2.0 was
+fine-tuned on** (`aila_company.jsonl` + `finetune_sample.jsonl`). `nano_20m` was
 additionally trained on `portuguese_basic.jsonl`; including it would
 penalize 1.0 for data it never saw.
 
-| Metric | 1.0 (10,877,184 params) | 2.0 (19,796,160 params) | Change |
+| Metric | `nano_10m` (10,877,184 params) | `nano_20m` (19,796,160 params) | Change |
 |---|---|---|---|
 | Validation loss | 1.7065 | **1.0081** | −41% |
 | Validation perplexity | 5.51 | **2.74** | −50% |
@@ -27,7 +30,7 @@ penalize 1.0 for data it never saw.
 
 Pretraining (before instruction tuning):
 
-| | 1.0 | 2.0 |
+| | `nano_10m` | `nano_20m` |
 |---|---|---|
 | Best pretrain val loss | — | 2.6304 |
 | Best pretrain perplexity | 16.43 | **13.88** |
@@ -36,7 +39,7 @@ Pretraining (before instruction tuning):
 ## What the numbers do and don't mean
 
 **Real:** the language-modeling improvement. Perplexity halved on the
-same data, and 2.0 no longer produces an empty reply for any malformed
+same data, and `nano_20m` no longer produces an empty reply for any malformed
 input.
 
 **Not real:** a dramatically better chat experience. Side-by-side on
@@ -44,23 +47,23 @@ identical prompts, **both models still garble text**. Examples, verbatim:
 
 > **"What can you help me with?"**
 > 1.0 — `The gift  InPI œLetâ€œI, €TMt have about  locers.`
-> 2.0 — `As Aila N...able, I can help answer questions, generate and take it one day at a time, hold convers...`
+> `nano_20m` — `As Aila N...able, I can help answer questions, generate and take it one day at a time, hold convers...`
 
 > **"Who created you?"**
 > 1.0 — `I was created byano, built from scratch by Aila N`
-> 2.0 — `I was created by`
+> `nano_20m` — `I was created by`
 
-2.0 recovers trained content more often (note it reaches "founders",
+`nano_20m` recovers trained content more often (note it reaches "founders",
 "approximately", "Guil…ald Grune…" on the identity questions, which 1.0
 mostly doesn't), but neither model reliably produces clean factual
 sentences. The identity and Portuguese keyword scores are unchanged
 precisely because of this: the right *content* often appears, mangled
 enough to miss the keyword check.
 
-## Why 2.0 is still the better system
+## Why the bigger model is still the better system
 
 The chat quality users actually experience comes mostly from the
-deterministic layer added in 2.0 — arithmetic, user memory, the global
+deterministic layer around the model — arithmetic, user memory, the global
 knowledge base, and web research — which returns exact answers and does
 not depend on the model's generation quality at all:
 

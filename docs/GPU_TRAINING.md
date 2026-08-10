@@ -1,12 +1,12 @@
 # Training Aila Nano on a cloud GPU
 
 Everything in this project trains on CPU today. That works — Aila Nano
-1.0 and 2.0 were both trained that way — but it caps how much data the
+Both model sizes were trained that way — but it caps how much data the
 model can see. This guide is for the next, bigger run.
 
 ## Why bother: the actual numbers from this project
 
-Measured on the CPU machine used for 2.0 (4 vCPU, 15 GB RAM), the
+Measured on the CPU machine used for `nano_20m` (4 vCPU, 15 GB RAM), the
 ~19.8M-parameter model at `batch=16, seq=256`:
 
 | | CPU (measured here) | One mid-range GPU (typical) |

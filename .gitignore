@@ -16,6 +16,11 @@ venv/
 checkpoints/**/*.pt
 checkpoints/**/*.pth
 checkpoints/**/*.ckpt
+# training/checkpoint.py writes atomically (tmp file + rename). A commit
+# made while a save is in flight otherwise sweeps up a ~223 MB *.pt.tmp,
+# which GitHub rejects outright — the push fails with a size-limit error
+# that says nothing about a temp file.
+checkpoints/**/*.tmp
 checkpoints/**/tb/
 !checkpoints/.gitkeep
 runs/
