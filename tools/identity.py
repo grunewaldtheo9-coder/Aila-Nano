@@ -73,6 +73,12 @@ _ANSWERS_EN: dict[str, str] = {
         f"I have {PARAMETER_COUNT} parameters, which makes me a small "
         "language model (an SLM) rather than a large one."
     ),
+    "beta": (
+        f"I'm in beta — a working early release, not a finished product. "
+        f"{COMPANY} is still improving me, so some answers will be rough. "
+        "If something is wrong, please tell them: type /support, or email "
+        "mailailacompanysolutions@gmail.com."
+    ),
     "capabilities": (
         "I can chat, answer questions, do arithmetic exactly, remember "
         "things you tell me (say \"remember that ...\"), and look things up "
@@ -106,6 +112,12 @@ _ANSWERS_PT: dict[str, str] = {
     "size": (
         "Tenho cerca de 20 milhões de parâmetros, o que me torna um modelo de "
         "linguagem pequeno (um SLM), não um grande."
+    ),
+    "beta": (
+        f"Estou em beta — uma versão inicial que funciona, mas não está "
+        f"pronta. A {COMPANY} ainda está me melhorando, então algumas "
+        "respostas saem imperfeitas. Se algo estiver errado, avise: digite "
+        "/support ou escreva para mailailacompanysolutions@gmail.com."
     ),
     "capabilities": (
         "Posso conversar, responder perguntas, fazer contas com exatidão, "
@@ -163,6 +175,20 @@ _INTENT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         ),
     ),
     (
+        "beta",
+        re.compile(
+            r"\b(?:are|is)\s+(?:you|aila(?:\s+nano)?)\s+finished\b"
+            r"|\bare\s+you\s+(?:done|complete|ready|final)\b"
+            r"|\bwhat\s+does\s+beta\s+mean\b"
+            r"|\bwhy\s+are\s+you\s+(?:called\s+)?beta\b"
+            r"|\bare\s+you\s+(?:in\s+)?beta\b"
+            r"|\bvoc[eê]\s+(?:est[aá]\s+)?(?:pronta|pronto|terminada|terminado)\b"
+            r"|\bo\s+que\s+(?:[eé]\s+)?beta\s+significa\b"
+            r"|\bo\s+que\s+significa\s+beta\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
         "capabilities",
         re.compile(
             r"\bwhat\s+can\s+you\s+(?:do|help)\b"
@@ -199,7 +225,13 @@ _INTENT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 # The message must be about Aila: it names Aila, or addresses "you".
-_ABOUT_AILA = re.compile(r"\b(aila|you|your|yours|yourself|voc[eê]|seu|sua|te)\b", re.IGNORECASE)
+# "beta" counts as naming Aila: in this chat, "what does beta mean?" is
+# a question about her release status and mentions neither her name nor
+# "you", so without it the gate rejected the question before any intent
+# could match.
+_ABOUT_AILA = re.compile(
+    r"\b(aila|beta|you|your|yours|yourself|voc[eê]|seu|sua|te)\b", re.IGNORECASE
+)
 
 # ...but never when it's about the *user*. "Do you remember my name?"
 # addresses Aila yet asks about the user — that belongs to memory.

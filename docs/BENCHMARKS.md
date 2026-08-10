@@ -88,3 +88,43 @@ visibly better answers.
 
 The highest-value next step is **more and better pretraining data on a
 GPU**, not a bigger model — see [GPU_TRAINING.md](GPU_TRAINING.md).
+
+---
+
+## Beta retrain (`checkpoints/finetune_beta` → shipped)
+
+The shipped weights were trained on identity data that stated a wrong
+parameter count (10.9M, from before the model grew to 19.8M) and did not
+know the release name. That data was corrected and the model re-trained
+on the same recipe (40 epochs, `configs/training/finetune_beta.yaml`,
+initialised from `checkpoints/pretrain_20m/best.pt`).
+
+| Metric | Previous weights | Beta retrain |
+|---|---|---|
+| Loss on the two datasets **unchanged** between the runs | 1.9525 (ppl 7.05) | **1.5554 (ppl 4.74)** |
+| Robustness (no crash, non-empty on 8 malformed inputs) | 8/8 | 8/8 |
+| Identity keyword accuracy (4 cases) | 1/4 | 1/4 |
+| Portuguese keyword accuracy (3 cases) | 1/3 | 0/3 |
+
+**How to read this honestly.**
+
+The headline number in `scripts/benchmark_model.py` (val_loss 1.3037 →
+0.8811) is *not* a fair comparison and is not quoted above: it evaluates
+on `aila_company.jsonl`, which changed between the two runs, so the new
+model is partly being scored on data it memorised and the old one on
+data it never saw. The table therefore measures only the two datasets
+that were byte-identical for both runs — where the improvement is real
+(perplexity 7.05 → 4.74) and apples-to-apples.
+
+The identity and Portuguese rows are 4- and 3-case keyword checks over
+generations that are incoherent in both models; a one-case difference
+there is noise, not signal. Side-by-side generation on ten prompts
+showed no quality difference worth claiming in either direction — both
+still garble open-ended text, exactly as
+[MODEL_CARD.md](MODEL_CARD.md#out-of-scope--limitations) says they will.
+
+**So why ship it?** Not for a quality jump — for correctness. The
+previous weights were trained to state a false parameter count. These
+are not. The deterministic layer (identity, small talk, memory,
+arithmetic, research) is what users actually experience for those
+questions, and it is unchanged by the retrain.

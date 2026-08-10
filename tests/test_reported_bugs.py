@@ -464,3 +464,43 @@ def test_router_answers_filler_without_touching_any_tool(store, kb):
     assert router.route("Bro").tool_used == "smalltalk:address"
     assert router.route("nice!").tool_used == "smalltalk:praise"
     assert client.calls == 0
+
+
+def test_no_smalltalk_phrase_is_silently_shadowed():
+    """The table is flattened with setdefault, so a phrase listed under
+    two intents would quietly take the first and drop the second — a
+    reply changing for no visible reason. Catch it at the source."""
+    from tools.smalltalk import _INTENTS
+
+    seen: dict[str, str] = {}
+    duplicates = []
+    for intent, phrases, _en, _pt in _INTENTS:
+        for phrase in phrases:
+            if phrase in seen:
+                duplicates.append((phrase, seen[phrase], intent))
+            seen[phrase] = intent
+    assert duplicates == [], f"phrases listed under two intents: {duplicates}"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Are you finished?",
+        "Are you in beta?",
+        "Why are you called Beta?",
+        "What does Beta mean?",
+    ],
+)
+def test_beta_status_is_answered_deterministically(message):
+    """Renaming the release to "Beta" invites the obvious follow-up. The
+    model garbled it ("Going hardwa is their old one of her in two co-"),
+    so it is answered from the fact table like the rest of identity."""
+    match = match_identity_question(message)
+    assert match is not None and match[0] == "beta"
+    assert "beta" in match[1].lower()
+    # It points at the reporting route, which is the useful part.
+    assert "/support" in match[1] or "mailailacompanysolutions" in match[1]
+
+
+def test_beta_intent_does_not_swallow_unrelated_beta_questions():
+    assert match_identity_question("What is beta testing?") is None
