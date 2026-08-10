@@ -110,6 +110,10 @@ _REASON_PRIORITY = ("auth_failed", "rate_limited", "search_failed")
 # confidently is worse than admitting the miss.
 MIN_ANSWER_OVERLAP = 0.2
 
+# How each source is named to the user. Internal ids are lowercase
+# identifiers; these are what a person reads.
+_SOURCE_LABELS = {"wikipedia": "Wikipedia", "serper": "the web"}
+
 
 def _worst_reason(failures: list[str]) -> str:
     """Pick what to tell the user after every provider failed.
@@ -154,12 +158,22 @@ class ResearchPipeline:
         cache_ttl_seconds: float = 168 * 3600,
         wikipedia=None,  # webresearch.wikipedia.WikipediaClient | None
         offline_cooldown_seconds: float = 60.0,
+        on_status=None,  # Callable[[str], None] | None
     ):
         self.client = client  # None => no Serper (no key configured)
         self.wikipedia = wikipedia  # None => Wikipedia disabled
         self.store = store
         self.knowledge = knowledge
         self.cache_ttl_seconds = cache_ttl_seconds
+
+        # Called with a short human-readable line ("Searching Wikipedia...")
+        # immediately before a lookup that will actually go out to the
+        # network. An interface can show it so a multi-second pause is
+        # explained rather than looking like a freeze. Never called for a
+        # cache hit or while the offline breaker is open — those return
+        # instantly, and announcing a search that isn't happening would be
+        # a lie.
+        self.on_status = on_status
 
         # Offline circuit breaker. Without it, every question asked with
         # no internet pays a full timeout per provider before failing —
@@ -206,6 +220,15 @@ class ResearchPipeline:
 
     def _note_connection_success(self) -> None:
         self._offline_until = 0.0
+
+    def _notify_status(self, message: str) -> None:
+        """Progress reporting must never be able to break research."""
+        if self.on_status is None:
+            return
+        try:
+            self.on_status(message)
+        except Exception:  # noqa: BLE001
+            logger.exception("status callback failed")
 
     def research(self, query: str) -> ResearchOutcome:
         """Full pipeline for one question. Returns ok=False (never
@@ -271,6 +294,8 @@ class ResearchPipeline:
 
         if self.offline:
             return None, False, "search_failed"
+
+        self._notify_status(f"Searching {_SOURCE_LABELS.get(provider, provider)}...")
 
         try:
             started = time.time()

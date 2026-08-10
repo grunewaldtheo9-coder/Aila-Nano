@@ -145,7 +145,11 @@ def handle_command(engine: AilaEngine, command: str, state: dict) -> bool:
             print("Usage: /study <topic>   e.g. /study photosynthesis")
         else:
             print(f"Looking up '{arg}'...")
-            _, message = engine.study(arg)
+            engine.set_status_callback(lambda msg: print(f"({msg})", flush=True))
+            try:
+                _, message = engine.study(arg)
+            finally:
+                engine.set_status_callback(None)
             print(message)
 
     elif cmd == "/knows":
@@ -237,7 +241,13 @@ def main() -> int:
     # frozen screen with no explanation.
     if engine.study_due():
         print("Studying something new...")
-    report = engine.run_daily_study()
+    # Same reason as during a chat turn: a study round makes several
+    # network calls and would otherwise look like a frozen screen.
+    engine.set_status_callback(lambda msg: print(f"  ({msg})", flush=True))
+    try:
+        report = engine.run_daily_study()
+    finally:
+        engine.set_status_callback(None)
     summary = report.summary()
     if summary:
         print(summary)
@@ -267,14 +277,33 @@ def main() -> int:
                     break
                 continue
 
-            print("Aila: ", end="", flush=True)
+            # "Aila: " is printed on the first piece of the reply, not
+            # before the turn starts. A lookup happens *inside*
+            # chat_stream and can take a couple of seconds; printing the
+            # prefix up front would leave "Aila: " hanging with nothing
+            # after it, and any "(Searching Wikipedia...)" line would
+            # land in the middle of her sentence.
+            started_reply = False
+
+            def show_reply_prefix() -> None:
+                nonlocal started_reply
+                if not started_reply:
+                    print("Aila: ", end="", flush=True)
+                    started_reply = True
+
+            engine.set_status_callback(lambda msg: print(f"({msg})", flush=True))
             try:
                 for delta in engine.chat_stream(
                     state["conversation_id"], user_input, agent_name=state["agent"]
                 ):
+                    show_reply_prefix()
                     print(delta, end="", flush=True)
             except Exception as e:  # keep the session alive on a bad turn
+                show_reply_prefix()
                 print(f"\n[error generating a response: {e}]", end="")
+            finally:
+                engine.set_status_callback(None)
+            show_reply_prefix()  # an empty reply still gets its prefix
             print("\n")
     finally:
         engine.close()

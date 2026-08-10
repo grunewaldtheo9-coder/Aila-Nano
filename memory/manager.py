@@ -31,11 +31,19 @@ class MemoryManager:
         embedder: AilaEmbedder,
         db_path: str = "memory/data/aila_memory.db",
         faiss_path: str = "memory/data/aila_memory.faiss",
+        max_facts: int = 3,
+        relevance_threshold: float = DEFAULT_RELEVANCE_THRESHOLD,
     ):
         self.store = MemoryStore(db_path)
         self.conversation = ConversationMemory(self.store)
         self.long_term = LongTermMemory(self.store)
         self.semantic = SemanticMemory(embedder, self.long_term, faiss_path=faiss_path)
+        # Defaults for `build_context`, so the engine can honour
+        # AILA_RETRIEVAL_TOP_K / AILA_RELEVANCE_THRESHOLD. Both were
+        # documented in docs/CONFIGURATION.md while being read by nothing
+        # at all — setting either did exactly nothing.
+        self.max_facts = max_facts
+        self.relevance_threshold = relevance_threshold
 
     # -- conversation (short-term) -----------------------------------------
 
@@ -108,14 +116,21 @@ class MemoryManager:
         conversation_id: str,
         query: str,
         max_turns: int = 10,
-        max_facts: int = 3,
+        max_facts: int | None = None,
         session_id: str | None = None,
-        threshold: float = DEFAULT_RELEVANCE_THRESHOLD,
+        threshold: float | None = None,
         weights: RankingWeights | None = None,
     ) -> MemoryContext:
+        """`max_facts`/`threshold` default to the values this manager was
+        constructed with (which the engine takes from configuration), so
+        an explicit argument still wins for callers that need one."""
         history = self.conversation.render_for_prompt(conversation_id, max_turns=max_turns)
         facts = self.get_relevant_memories(
-            query, k=max_facts, session_id=session_id, threshold=threshold, weights=weights
+            query,
+            k=self.max_facts if max_facts is None else max_facts,
+            session_id=session_id,
+            threshold=self.relevance_threshold if threshold is None else threshold,
+            weights=weights,
         )
         return MemoryContext(history=history, relevant_facts=facts)
 

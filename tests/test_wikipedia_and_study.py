@@ -693,3 +693,104 @@ def test_cache_keys_separate_languages(store, kb):
     again = pipe.research("What is Petrobras?")
     assert again.from_cache is True
     assert len(wiki.requests) == requests_before
+
+
+# -- "(Searching...)" progress ------------------------------------------------
+
+
+def test_a_lookup_announces_which_source_it_is_using(store, kb):
+    """A lookup takes a couple of seconds. Without this the chat simply
+    stops responding, which reads as a freeze."""
+    seen: list[str] = []
+    wiki = FakeWikipedia(pages={"Samsung": _page("Samsung", "Samsung Group is a Korean conglomerate.")})
+    pipe = ResearchPipeline(None, store, kb, wikipedia=wiki, on_status=seen.append)
+
+    pipe.research("Who created Samsung?")
+    assert seen == ["Searching Wikipedia..."]
+
+
+def test_falling_back_to_serper_is_announced_too(store, kb):
+    seen: list[str] = []
+    wiki = FakeWikipedia(pages={}, search_hits={})
+    serper = FakeSerper(
+        response=SearchResponse(
+            query="q",
+            results=[
+                SearchResult(
+                    title="Hames Eventos",
+                    link="https://hameseventos.example.com/",
+                    snippet="Hames Eventos is an events company created by the Hames family.",
+                    position=1,
+                )
+            ],
+        )
+    )
+    pipe = ResearchPipeline(serper, store, kb, wikipedia=wiki, on_status=seen.append)
+
+    out = pipe.research("Who created Hames Eventos?")
+    assert out.provider == "serper"
+    assert seen == ["Searching Wikipedia...", "Searching the web..."]
+
+
+def test_a_cached_answer_does_not_claim_to_be_searching(store, kb):
+    """Announcing a search that isn't happening is a lie, and a cache hit
+    returns instantly — there is nothing to explain."""
+    seen: list[str] = []
+    wiki = FakeWikipedia(pages={"Samsung": _page("Samsung", "Samsung Group is a Korean conglomerate.")})
+    pipe = ResearchPipeline(None, store, kb, wikipedia=wiki, on_status=seen.append)
+
+    pipe.research("Who created Samsung?")
+    seen.clear()
+    requests_before = len(wiki.requests)
+
+    pipe.research("Who created Samsung?")
+    assert seen == []
+    assert len(wiki.requests) == requests_before
+
+
+def test_nothing_is_announced_while_offline(store, kb):
+    seen: list[str] = []
+    wiki = FakeWikipedia(pages={}, error=WikipediaUnavailableError("no route to host"))
+    pipe = ResearchPipeline(None, store, kb, wikipedia=wiki, on_status=seen.append, offline_cooldown_seconds=60)
+
+    pipe.research("Who created Samsung?")
+    assert len(seen) == 1  # the attempt that failed
+    pipe.research("Who founded Apple?")
+    assert len(seen) == 1, "the breaker is open — no search is happening to announce"
+
+
+def test_a_broken_status_callback_cannot_break_research(store, kb):
+    def explode(_message):
+        raise RuntimeError("callback exploded")
+
+    wiki = FakeWikipedia(pages={"Samsung": _page("Samsung", "Samsung Group is a Korean conglomerate.")})
+    pipe = ResearchPipeline(None, store, kb, wikipedia=wiki, on_status=explode)
+
+    out = pipe.research("Who created Samsung?")
+    assert out.ok is True
+
+
+def test_engine_retrieval_settings_are_actually_used(tokenizer, tmp_path, monkeypatch):
+    """`AILA_RETRIEVAL_TOP_K` and `AILA_RELEVANCE_THRESHOLD` were
+    documented in docs/CONFIGURATION.md while being read by nothing —
+    setting either did exactly nothing."""
+    from engine import AilaEngine, EngineSettings
+
+    for var, value in {
+        "AILA_CHECKPOINT": str(tmp_path / "missing.pt"),
+        "AILA_FALLBACK_CHECKPOINT": str(tmp_path / "missing2.pt"),
+        "AILA_TOKENIZER": tokenizer.model_path,
+        "AILA_MEMORY_DB": str(tmp_path / "m.db"),
+        "AILA_MEMORY_FAISS": str(tmp_path / "m.faiss"),
+        "AILA_KNOWLEDGE_DB": str(tmp_path / "k.db"),
+        "AILA_KNOWLEDGE_FAISS": str(tmp_path / "k.faiss"),
+        "AILA_KNOWLEDGE_STORE_DB": str(tmp_path / "ks.db"),
+        "AILA_DEVICE": "cpu",
+        "AILA_RETRIEVAL_TOP_K": "7",
+        "AILA_RELEVANCE_THRESHOLD": "0.55",
+    }.items():
+        monkeypatch.setenv(var, value)
+
+    with AilaEngine(EngineSettings()) as engine:
+        assert engine.memory.max_facts == 7
+        assert engine.memory.relevance_threshold == 0.55

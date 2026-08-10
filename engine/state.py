@@ -62,6 +62,8 @@ class AilaEngine:
             self.embedder,
             db_path=self.settings.memory_db,
             faiss_path=self.settings.memory_faiss,
+            max_facts=self.settings.retrieval_top_k,
+            relevance_threshold=self.settings.relevance_threshold,
         )
         self._notify("OK")
 
@@ -74,6 +76,9 @@ class AilaEngine:
         self._notify("OK")
 
         self._notify("Loading knowledge base...")
+        # Set before the stack is built: the pipeline captures
+        # `self._emit_status`, which reads this on every call.
+        self._status_callback = None
         self.knowledge_store, self.knowledge_base, self.router = self._build_knowledge_stack()
         self._notify("OK")
 
@@ -158,6 +163,7 @@ class AilaEngine:
                 base,
                 cache_ttl_seconds=self.settings.web_cache_ttl_hours * 3600,
                 wikipedia=wikipedia,
+                on_status=self._emit_status,
             )
             if (client is not None or wikipedia is not None)
             else None
@@ -231,6 +237,24 @@ class AilaEngine:
     @property
     def is_trained(self) -> bool:
         return self.model_loaded_from is not None
+
+    def set_status_callback(self, callback) -> None:
+        """Where to send short progress lines like "Searching Wikipedia...".
+
+        A lookup can take a couple of seconds, and without this the chat
+        simply stops responding with no explanation. Set to None to
+        silence it.
+        """
+        self._status_callback = callback
+
+    def _emit_status(self, message: str) -> None:
+        callback = getattr(self, "_status_callback", None)
+        if callback is None:
+            return
+        try:
+            callback(message)
+        except Exception:  # noqa: BLE001 — progress must never break a turn
+            logger.exception("status callback failed")
 
     @property
     def web_search_active(self) -> bool:

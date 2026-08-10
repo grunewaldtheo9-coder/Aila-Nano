@@ -346,6 +346,16 @@ vocabulary with the question wins. A perfect-scoring direct hit skips
 the search entirely, which halves the requests for the commonest shape
 ("What is X?") and keeps well clear of Wikimedia's rate limits.
 
+**Progress reporting.** `ResearchPipeline(on_status=...)` is called with
+a short line ("Searching Wikipedia...", "Searching the web...")
+immediately before a lookup that will actually leave the machine.
+`AilaEngine.set_status_callback` routes it to whatever interface is
+attached; `chat.py` prints it on its own line, which is also why it
+defers printing the `Aila: ` prefix until the first piece of the reply
+arrives. It is deliberately silent for a cache hit or while the offline
+breaker is open — announcing a search that isn't happening is a lie, and
+those paths return instantly anyway.
+
 **Offline circuit breaker.** A connection failure (as opposed to a
 rejected key, which proves the network is up) opens a breaker for
 `offline_cooldown_seconds`. Without it, every question asked with no
