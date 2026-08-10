@@ -40,8 +40,11 @@ def build_support_report(engine, version: str, note: str = "") -> str:
     lines.append(f"Model parameters  : {_safe(lambda: f'{engine.parameter_count():,}')}")
     lines.append(f"Trained model     : {_safe(lambda: 'yes' if engine.is_trained else 'NO')}")
     lines.append(f"Checkpoint        : {_safe(lambda: engine.model_loaded_from or '(none)')}")
-    # Presence only — never the key. See module docstring.
-    lines.append(f"Web search        : {_safe(lambda: 'on' if engine.web_search_active else 'off')}")
+    # Source *names* only — never the key. See module docstring.
+    lines.append(
+        f"Lookup sources    : {_safe(lambda: ', '.join(engine.research_sources) or 'none')}"
+    )
+    lines.append(f"Facts learned     : {_safe(lambda: engine.known_fact_count)}")
     lines.append(f"Remembered facts  : {_safe(lambda: len(engine.memory.all_memories()))}")
 
     if note:

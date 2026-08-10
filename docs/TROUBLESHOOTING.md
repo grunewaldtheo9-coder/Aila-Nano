@@ -112,26 +112,50 @@ distinctive wording when storing.
 
 ---
 
-## Web research (Serper)
+## Looking things up (Wikipedia + Serper)
 
-### Web research never fires
+### Nothing gets looked up
 
-Check, in order:
+`chat.py` prints its live sources at startup:
 
-```bash
-grep SERPER_API_KEY .env          # key present?
-echo $AILA_WEB_SEARCH_ENABLED     # not "false"?
+```
+Looking things up with: wikipedia, serper
 ```
 
-With no key, `chat.py` says so at startup — `Web search is OFF — no
-SERPER_API_KEY found in your .env file` — and simply runs without the
-tool. Factual questions then fall through to generation, which at this
-scale means unreliable answers; that trade-off keeps an offline install
-behaving as it did before web research existed.
+Wikipedia needs no API key and is on by default, so seeing *no* sources
+means both were switched off:
+
+```bash
+echo $AILA_WIKIPEDIA_ENABLED      # not "false"?
+echo $AILA_WEB_SEARCH_ENABLED     # not "false"?
+grep SERPER_API_KEY .env          # optional — Wikipedia works without it
+```
 
 Also note the router only researches **factual questions**: it never
 sends chit-chat, non-questions, or anything mentioning Aila/"you" to the
 web.
+
+### Aila answers about the wrong thing entirely
+
+Report it — but first check whether the question names something
+ambiguous. Aila picks the Wikipedia article whose summary shares the most
+words with your question, so adding a word helps: "Who founded Apple?"
+finds Apple Inc., while a bare "Apple" is genuinely ambiguous.
+
+### Aila is slow when I have no internet
+
+She shouldn't be. After one failed connection, lookups are skipped for a
+minute (the offline circuit breaker), so unknown questions come back in
+about a tenth of a second and everything already learned answers
+instantly. If every question hangs for several seconds, the connection is
+succeeding slowly rather than failing — lower `AILA_WEB_TIMEOUT_SECONDS`.
+
+### Startup studies something every time I open it
+
+It shouldn't — study runs at most once a day, recorded in the knowledge
+database. If it runs on every start, the knowledge database is probably
+being recreated each time (a temporary `AILA_KNOWLEDGE_STORE_DB` path).
+To switch it off entirely, set `AILA_DAILY_STUDY=false`.
 
 ### Aila says "My web search key isn't being accepted right now"
 

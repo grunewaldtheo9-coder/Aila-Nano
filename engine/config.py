@@ -108,6 +108,26 @@ class EngineSettings:
     web_cache_ttl_hours: float = field(
         default_factory=lambda: _env_float("AILA_WEB_CACHE_TTL_HOURS", 168.0)
     )
+
+    # -- Aila 2.1: Wikipedia + self-directed study -------------------------
+    # Wikipedia needs no API key and no account, so it is on by default —
+    # it is what keeps Aila able to look things up when no Serper key is
+    # configured (or the key stops working).
+    wikipedia_enabled: bool = field(
+        default_factory=lambda: _env_bool("AILA_WIKIPEDIA_ENABLED", True)
+    )
+    wikipedia_max_results: int = field(
+        default_factory=lambda: _env_int("AILA_WIKIPEDIA_MAX_RESULTS", 3)
+    )
+    # Once per day at startup, Aila looks up a few things she previously
+    # failed to answer. Bounded on purpose: `study_topics_per_day` lookups
+    # is the entire cost, so this can never turn startup into a long wait.
+    daily_study_enabled: bool = field(
+        default_factory=lambda: _env_bool("AILA_DAILY_STUDY", True)
+    )
+    study_topics_per_day: int = field(
+        default_factory=lambda: _env_int("AILA_STUDY_TOPICS_PER_DAY", 3)
+    )
     retrieval_top_k: int = field(default_factory=lambda: _env_int("AILA_RETRIEVAL_TOP_K", 3))
     relevance_threshold: float = field(
         default_factory=lambda: _env_float("AILA_RELEVANCE_THRESHOLD", 0.2)

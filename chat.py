@@ -27,7 +27,7 @@ from engine import AilaEngine, EngineSettings
 from engine.env import load_env
 from engine.support import SUPPORT_EMAIL, support_message
 
-VERSION = "2.0"
+VERSION = "2.1"
 
 COMMANDS = """\
 Commands:
@@ -40,6 +40,8 @@ Commands:
   /forget <text>     remove a matching remembered fact
   /memories          list everything currently remembered
   /learn <path>      index a local .txt/.md file into the knowledge base
+  /study <topic>     look a topic up now and remember it forever
+  /knows             how much Aila has learned so far
   /support           how to report a problem to Aila Company Solutions
   /feedback <text>   same, with your message included
   exit, quit         leave
@@ -133,6 +135,24 @@ def handle_command(engine: AilaEngine, command: str, state: dict) -> bool:
         agent = engine.get_agent(state["agent"])
         print(agent._handle_memory_command("what do you remember about me?"))
 
+    elif cmd == "/study":
+        if not arg:
+            print("Usage: /study <topic>   e.g. /study photosynthesis")
+        else:
+            print(f"Looking up '{arg}'...")
+            _, message = engine.study(arg)
+            print(message)
+
+    elif cmd == "/knows":
+        count = engine.known_fact_count
+        sources = engine.research_sources
+        print(f"I've learned {count} fact(s) so far, and I can answer them with no internet.")
+        print(
+            "Live sources: " + ", ".join(sources)
+            if sources
+            else "Live sources: none (I can only use what I already know)."
+        )
+
     elif cmd in ("/support", "/feedback"):
         print(support_message(engine, VERSION, note=arg))
 
@@ -187,14 +207,32 @@ def main() -> int:
             "until you train Aila Nano. See docs/TRAINING.md.)"
         )
 
-    if not engine.web_search_active:
+    if engine.web_search_active:
+        print(f"\nLooking things up with: {', '.join(engine.research_sources)}")
+    else:
         print(
-            "\n(Web search is OFF — no SERPER_API_KEY found in your .env file.\n"
-            " Aila can still chat, do maths, and use what it remembers, but it\n"
-            " cannot look up facts it wasn't trained on. Free key: serper.dev)"
+            "\n(Looking things up is OFF — no sources are enabled.\n"
+            " Aila can still chat, do maths, and use what she already knows,\n"
+            " but she can't learn anything new.)"
         )
 
-    print("Ready.\n")
+    # One bounded round of self-directed study, at most once a day. Aila
+    # re-visits questions she previously failed to answer, so the same
+    # question works next time — and works offline from then on.
+    #
+    # The "Studying..." line is printed *before* the round, because the
+    # round blocks: announcing it afterwards left the user watching a
+    # frozen screen with no explanation.
+    if engine.study_due():
+        print("Studying something new...")
+    report = engine.run_daily_study()
+    summary = report.summary()
+    if summary:
+        print(summary)
+
+    print(f"I know {engine.known_fact_count} fact(s) I can use without the internet.")
+
+    print("\nReady.\n")
 
     state = {"conversation_id": new_conversation_id(), "agent": engine.settings.default_agent}
     if state["agent"] not in engine.available_agents():

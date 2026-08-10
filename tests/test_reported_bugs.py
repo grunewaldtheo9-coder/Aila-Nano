@@ -272,9 +272,13 @@ def test_our_own_length_cap_does_not_create_an_incomplete_answer(store, kb):
     mid-sentence, and because the cut left no ellipsis the repair step
     couldn't tell and simply bolted a period on the end — reproducing the
     reported complaint from our own code rather than the search engine's."""
+    from webresearch.quality import MAX_SNIPPET_CHARS
+
+    filler = "Samsung was founded in 1938. "
     long_snippet = (
-        "Samsung was founded in 1938. " * 12
+        filler * (MAX_SNIPPET_CHARS // len(filler) + 2)
     ) + "It later expanded into shipbuilding, insurance and electronics manufacturing"
+    assert len(long_snippet) > MAX_SNIPPET_CHARS
     response = SearchResponse(
         query="who created samsung",
         results=[

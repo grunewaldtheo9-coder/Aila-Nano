@@ -126,10 +126,10 @@ def test_knowledge_base_is_used_as_context_by_agents(engine, tmp_path):
 
 
 def test_engine_reports_whether_web_search_is_active(tokenizer, tmp_path, monkeypatch):
-    """Without a key the engine builds no research pipeline, and factual
-    questions quietly fall through to generation. `web_search_active`
-    makes that visible so `chat.py` can say so at startup instead of the
-    user wondering why nothing is ever looked up."""
+    """Without any live source the engine builds no research pipeline, and
+    factual questions quietly fall through to generation.
+    `web_search_active` makes that visible so `chat.py` can say so at
+    startup instead of the user wondering why nothing is looked up."""
     monkeypatch.setenv("AILA_CHECKPOINT", str(tmp_path / "does-not-exist.pt"))
     monkeypatch.setenv("AILA_FALLBACK_CHECKPOINT", str(tmp_path / "also-missing.pt"))
     monkeypatch.setenv("AILA_TOKENIZER", tokenizer.model_path)
@@ -140,13 +140,52 @@ def test_engine_reports_whether_web_search_is_active(tokenizer, tmp_path, monkey
     monkeypatch.setenv("AILA_KNOWLEDGE_STORE_DB", str(tmp_path / "kstore.db"))
     monkeypatch.setenv("AILA_DEVICE", "cpu")
 
+    # Everything off: no key, no Wikipedia.
     monkeypatch.setenv("SERPER_API_KEY", "")
+    monkeypatch.setenv("AILA_WIKIPEDIA_ENABLED", "false")
     with AilaEngine(EngineSettings()) as engine:
         assert engine.web_search_active is False
+        assert engine.research_sources == []
 
-    # A key that is merely *present* is enough to build the pipeline —
-    # whether the key still works is only discoverable by calling out,
-    # and is reported per-question by the router.
-    monkeypatch.setenv("SERPER_API_KEY", "not-a-real-key")
+    # Wikipedia alone is enough — that is the whole point of adding it.
+    # No request is made by merely constructing the client.
+    monkeypatch.setenv("AILA_WIKIPEDIA_ENABLED", "true")
     with AilaEngine(EngineSettings()) as engine:
         assert engine.web_search_active is True
+        assert engine.research_sources == ["wikipedia"]
+
+    # A key that is merely *present* is enough to add Serper — whether it
+    # still works is only discoverable by calling out, and is reported
+    # per-question by the router.
+    monkeypatch.setenv("SERPER_API_KEY", "not-a-real-key")
+    with AilaEngine(EngineSettings()) as engine:
+        # Wikipedia first: free, no quota, complete sentences.
+        assert engine.research_sources == ["wikipedia", "serper"]
+
+
+def test_engine_counts_what_it_knows(engine):
+    assert engine.known_fact_count == 0
+    engine.knowledge_store.add_knowledge("Who founded Apple?", "Steve Jobs and others.")
+    assert engine.known_fact_count == 1
+
+
+def test_study_without_sources_says_so(tokenizer, tmp_path, monkeypatch):
+    monkeypatch.setenv("AILA_CHECKPOINT", str(tmp_path / "does-not-exist.pt"))
+    monkeypatch.setenv("AILA_FALLBACK_CHECKPOINT", str(tmp_path / "also-missing.pt"))
+    monkeypatch.setenv("AILA_TOKENIZER", tokenizer.model_path)
+    monkeypatch.setenv("AILA_MEMORY_DB", str(tmp_path / "mem.db"))
+    monkeypatch.setenv("AILA_MEMORY_FAISS", str(tmp_path / "mem.faiss"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_DB", str(tmp_path / "kb.db"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_FAISS", str(tmp_path / "kb.faiss"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_STORE_DB", str(tmp_path / "kstore.db"))
+    monkeypatch.setenv("AILA_DEVICE", "cpu")
+    monkeypatch.setenv("SERPER_API_KEY", "")
+    monkeypatch.setenv("AILA_WIKIPEDIA_ENABLED", "false")
+
+    with AilaEngine(EngineSettings()) as engine:
+        learned, message = engine.study("photosynthesis")
+        assert learned is False
+        assert "no research sources" in message
+        # An empty topic is a usage error, not a failed lookup.
+        assert engine.study("")[0] is False
+        assert engine.run_daily_study().skipped is True

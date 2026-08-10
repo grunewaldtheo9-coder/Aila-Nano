@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -100,6 +101,7 @@ class AilaEngine:
         from tools.router import ToolRouter
         from webresearch.pipeline import ResearchPipeline
         from webresearch.serper import SerperClient
+        from webresearch.wikipedia import WikipediaClient
 
         store = None
         if self.settings.storage_backend == "firestore":
@@ -133,7 +135,21 @@ class AilaEngine:
                 max_results=self.settings.web_max_results,
             )
         elif self.settings.web_search_enabled:
-            logger.info("Web search enabled but SERPER_API_KEY is not set — running offline.")
+            logger.info("SERPER_API_KEY is not set — relying on Wikipedia alone.")
+
+        # Wikipedia needs no key, so unless it is explicitly switched off
+        # Aila always has *a* live source. This is what keeps her useful
+        # when the Serper key is missing, cancelled, or out of credits —
+        # the situation that previously dropped every factual question
+        # onto a ~20M-parameter model's guesswork.
+        wikipedia = (
+            WikipediaClient(
+                timeout_seconds=self.settings.web_timeout_seconds,
+                max_results=self.settings.wikipedia_max_results,
+            )
+            if self.settings.wikipedia_enabled
+            else None
+        )
 
         research = (
             ResearchPipeline(
@@ -141,8 +157,9 @@ class AilaEngine:
                 store,
                 base,
                 cache_ttl_seconds=self.settings.web_cache_ttl_hours * 3600,
+                wikipedia=wikipedia,
             )
-            if client is not None
+            if (client is not None or wikipedia is not None)
             else None
         )
         router = ToolRouter(knowledge=base, research=research, memory=self.memory)
@@ -217,12 +234,117 @@ class AilaEngine:
 
     @property
     def web_search_active(self) -> bool:
-        """True when a Serper client was actually constructed, i.e. web
-        research can run. Exposed (rather than left as a log line) so an
-        interface can tell the user up front: without it, "why can't Aila
-        look anything up?" has no visible answer, and factual questions
-        quietly fall through to generation instead."""
+        """True when at least one live source (Wikipedia or Serper) was
+        constructed, i.e. research can run at all. Exposed (rather than
+        left as a log line) so an interface can tell the user up front:
+        without it, "why can't Aila look anything up?" has no visible
+        answer, and factual questions quietly fall through to
+        generation instead."""
         return self.router is not None and self.router.research is not None
+
+    @property
+    def research_sources(self) -> list[str]:
+        """Names of the live sources available, best-first. Empty when
+        research is switched off entirely."""
+        research = getattr(self.router, "research", None)
+        if research is None:
+            return []
+        return [name for name, _, _ in research._providers()]
+
+    @property
+    def known_fact_count(self) -> int:
+        """How many researched facts Aila can answer from with no network
+        at all — the number that goes up every time she learns."""
+        try:
+            return len(self.knowledge_store.all_knowledge())
+        except Exception:  # noqa: BLE001 — a count must never break startup
+            return 0
+
+    # -- self-directed study -----------------------------------------------
+
+    def study(self, topic: str) -> tuple[bool, str]:
+        """Research one topic on demand and keep what is found.
+
+        Returns (learned, message). Learning is exactly the normal
+        research path, so nothing reaches the knowledge base that didn't
+        clear the usual extraction and confidence gates.
+        """
+        topic = (topic or "").strip()
+        if not topic:
+            return False, "Tell me what to study, e.g. /study photosynthesis"
+        research = getattr(self.router, "research", None)
+        if research is None:
+            return False, "I have no research sources enabled, so I can't study right now."
+
+        question = _as_question(topic)
+        try:
+            outcome = research.research(question)
+        except Exception as e:  # noqa: BLE001 — never break the session
+            logger.exception("study failed for %r", topic)
+            return False, f"I couldn't study that ({type(e).__name__})."
+
+        if not (outcome.ok and outcome.answer):
+            return False, "I looked that up but couldn't find anything reliable to learn."
+
+        # `stored` says what the knowledge base did with it, and each
+        # outcome means something different to the user. Reporting them
+        # all as success would claim things that aren't true — in
+        # particular `None` means "found, but too low-confidence to
+        # keep", which is the opposite of having learned it.
+        if outcome.stored in ("created", "updated"):
+            return True, f"Learned it. {outcome.answer}"
+        if outcome.stored == "conflict":
+            return False, (
+                "What I found disagrees with something I already know, so I've kept "
+                "both aside rather than trusting either. Here's the new version: "
+                f"{outcome.answer}"
+            )
+        if outcome.stored == "rejected":
+            return False, "What I found wasn't solid enough to keep."
+        return False, (
+            "I found something, but I'm not confident enough in it to keep it: "
+            f"{outcome.answer}"
+        )
+
+    def study_due(self) -> bool:
+        """Whether a study round would actually do work right now.
+
+        Exposed so an interface can say "Studying..." *before* the wait
+        rather than after it — the study round blocks, and printing the
+        message afterwards left the user staring at nothing.
+        """
+        from knowledge.study import StudySession
+
+        research = getattr(self.router, "research", None)
+        if research is None or not self.settings.daily_study_enabled:
+            return False
+        try:
+            return StudySession(
+                self.knowledge_store, research, max_topics=self.settings.study_topics_per_day
+            ).due()
+        except Exception:  # noqa: BLE001
+            logger.exception("could not determine study schedule")
+            return False
+
+    def run_daily_study(self, force: bool = False):
+        """One bounded round of self-directed study — see
+        knowledge/study.py. Returns a StudyReport (possibly skipped)."""
+        from knowledge.study import StudyReport, StudySession
+
+        research = getattr(self.router, "research", None)
+        if research is None or not self.settings.daily_study_enabled:
+            return StudyReport(skipped=True)
+
+        session = StudySession(
+            self.knowledge_store,
+            research,
+            max_topics=self.settings.study_topics_per_day,
+        )
+        try:
+            return session.run(force=force)
+        except Exception:  # noqa: BLE001 — study must never break startup
+            logger.exception("daily study failed")
+            return StudyReport(skipped=True)
 
     def parameter_count(self) -> int:
         return sum(p.numel() for p in self.model.parameters())
@@ -277,3 +399,30 @@ class AilaEngine:
 
     def __exit__(self, *exc_info) -> None:
         self.close()
+
+
+# Question openers, EN + PT. A topic that already reads as a question is
+# researched as-is: wrapping it produced "What is who created Samsung?",
+# which searches for nothing at all.
+_QUESTION_SHAPED = re.compile(
+    r"^\s*(who|what|when|where|which|why|how|is|are|was|were|do|does|did|can|"
+    r"quem|o\s+que|qual|quais|quando|onde|por\s+que|porque|como|quantos?|quantas?)\b",
+    re.IGNORECASE,
+)
+
+
+def _as_question(topic: str) -> str:
+    """Turn a bare topic into something researchable.
+
+    "photosynthesis"          -> "What is photosynthesis?"
+    "who created Samsung"     -> "who created Samsung?"   (already a question)
+    "What is DNA?"            -> unchanged
+    """
+    topic = (topic or "").strip()
+    if not topic:
+        return ""
+    if topic.endswith("?"):
+        return topic
+    if _QUESTION_SHAPED.match(topic):
+        return topic + "?"
+    return f"What is {topic}?"

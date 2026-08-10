@@ -61,6 +61,15 @@ CREATE TABLE IF NOT EXISTS web_cache (
     fetched_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_web_cache_query ON web_cache(query_normalized);
+
+-- Small key/value scratchpad for the store's own bookkeeping. Currently
+-- one key: when the daily study session last ran (knowledge/study.py),
+-- so a restart doesn't re-study and a machine left off for a week
+-- doesn't try to catch up seven times over.
+CREATE TABLE IF NOT EXISTS knowledge_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -219,6 +228,22 @@ class KnowledgeStore:
         if time.time() - row["fetched_at"] > max_age_seconds:
             return None
         return json.loads(row["results_json"])
+
+    # -- meta --------------------------------------------------------------
+
+    def get_meta(self, key: str, default: str | None = None) -> str | None:
+        row = self._conn.execute(
+            "SELECT value FROM knowledge_meta WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else default
+
+    def set_meta(self, key: str, value: str) -> None:
+        self._conn.execute(
+            "INSERT INTO knowledge_meta (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, str(value)),
+        )
+        self._conn.commit()
 
     def close(self) -> None:
         self._conn.close()

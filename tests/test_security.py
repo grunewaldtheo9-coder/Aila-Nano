@@ -471,4 +471,4 @@ def test_support_report_never_contains_the_api_key(monkeypatch, tokenizer, tmp_p
     assert FAKE_KEY not in report
     assert FAKE_KEY not in full
     # It should still say whether web search is configured at all.
-    assert "Web search        : on" in report
+    assert "Lookup sources    : " in report

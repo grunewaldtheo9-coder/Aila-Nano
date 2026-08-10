@@ -21,7 +21,12 @@ from webresearch.pipeline import (
     detect_language,
     normalize_query,
 )
-from webresearch.quality import domain_tier, rank_sources, sanitize_snippet
+from webresearch.quality import (
+    MAX_SNIPPET_CHARS,
+    domain_tier,
+    rank_sources,
+    sanitize_snippet,
+)
 from webresearch.serper import (
     SearchResponse,
     SearchResult,
@@ -206,7 +211,7 @@ def test_sanitize_snippet_cleans_and_truncates_normal_text():
     clean = sanitize_snippet(messy)
     assert clean is not None
     assert "\x00" not in clean and "\t" not in clean
-    assert len(clean) <= 400
+    assert len(clean) <= MAX_SNIPPET_CHARS
     assert clean.startswith("Apple was founded in 1976.")
 
 

@@ -159,8 +159,15 @@ question, however rephrased, is answered offline afterwards.)
 
 Type `exit` or `quit` to leave, `/help` to see the rest of the commands
 (switching agents, `/remember` `/forget` `/memories`, indexing a file
-into the knowledge base, and `/support` / `/feedback` to report a
-problem to Aila Company Solutions). Plain-language commands work too:
+into the knowledge base, `/study <topic>` to learn something on the
+spot, `/knows` to see how much she has learned, and `/support` /
+`/feedback` to report a problem to Aila Company Solutions).
+
+Aila looks things up on **Wikipedia** — free, no API key, no account —
+and on Google via serper.dev if you set `SERPER_API_KEY`. Everything she
+researches is stored, so it answers instantly and works with no
+internet afterwards. Once a day at startup she also goes back and
+studies questions she previously failed to answer. Plain-language commands work too:
 "remember that ...", "forget that ...", "what do you remember about me?"
 
 Full walkthroughs: [docs/INSTALL.md](docs/INSTALL.md) ·

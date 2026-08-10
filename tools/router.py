@@ -48,7 +48,7 @@ import re
 from dataclasses import dataclass, field
 
 from knowledge.base import KnowledgeBase
-from memory.lexical import tokenize
+from memory.lexical import GENERIC_QUESTION_TERMS, tokenize
 from memory.phrasing import memory_to_answer
 from tools.calculator import try_calculate
 from tools.identity import match_identity_question
@@ -326,10 +326,18 @@ class ToolRouter:
 
     def _is_information_question(self, message: str) -> bool:
         """Only factual information questions leave the model: they must
-        look like a question, be substantial enough to search, and not be
+        look like a question, name something searchable, and not be
         about Aila itself or the current conversation."""
         if _SELF_REFERENCE.search(message):
             return False
         if not self._looks_like_question(message):
             return False
-        return len(tokenize(message)) >= 2
+
+        # Needs at least one word that actually names a subject. A bare
+        # two-token count was the old rule and it rejected "Who is
+        # MrBeast?" — one significant token, and exactly the kind of
+        # question research exists for. Counting *distinctive* tokens
+        # instead keeps "What is that?" (no subject at all) out while
+        # letting single-subject questions through.
+        significant = tokenize(message) - GENERIC_QUESTION_TERMS
+        return len(significant) >= 1

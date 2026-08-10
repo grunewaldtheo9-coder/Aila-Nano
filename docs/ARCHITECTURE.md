@@ -304,27 +304,95 @@ Privacy invariant: nothing in `knowledge/` accepts a user/session id at
 all — user memories structurally cannot leak into global knowledge at
 this layer, and `memory/` never writes here automatically.
 
-## Web research (`webresearch/`) — Aila 2.0
+## Web research (`webresearch/`) — Aila 2.0 / 2.1
 
-`SerperClient` (stdlib urllib; typed errors for auth/rate-limit/timeout;
-the API key comes from `SERPER_API_KEY` only and never appears in logs
-or error messages) + `quality.py` (transparent domain-tier source
-ranking; sanitization that strips control characters, truncates, and
-rejects prompt-injection-patterned text outright) + `ResearchPipeline`:
+Two interchangeable sources behind one pipeline:
+
+- **`WikipediaClient`** (2.1) — free, no API key, no account, no quota.
+  English and Portuguese. Aila's *default* source.
+- **`SerperClient`** — Google results via serper.dev. Optional; the API
+  key comes from `SERPER_API_KEY` only and never appears in logs or
+  error messages.
+
+Both return the same `SearchResponse` shape, so `quality.py` (domain-tier
+ranking; sanitization that strips control characters, bounds length, and
+rejects prompt-injection-patterned text outright), the on-disk cache and
+the pipeline treat them identically. Adding a third source costs one
+adapter and no downstream changes.
 
 ```
-query → cache? → Serper → rank sources → extract answer
-      (answer box > knowledge graph > corroborated snippet)
+query → cache? → Wikipedia → (if nothing usable) Serper
+      → rank sources → extract answer
+        (answer box > encyclopedia summary > corroborated snippet)
+      → repair cut-off text, gate on word-overlap with the question
       → confidence (documented additive model, capped at 0.95)
       → dedup/store via KnowledgeBase (or park as candidate)
       → ResearchOutcome
 ```
 
+**Why Wikipedia goes first.** It costs nothing, has no quota to run out
+of, is a tier-1 domain, and returns whole paragraphs of finished prose
+rather than the mid-sentence fragments a search engine returns. It also
+removes a single point of failure that bit this project for real: when
+the configured Serper key was cancelled, *every* factual question fell
+through to a ~20M-parameter model's guesswork.
+
+**Picking the right article.** A page title guessed from the question
+("Who founded Apple?" → `Apple`) is often a real page about the wrong
+thing — that guess answered the question with the article about the
+*fruit*. So candidates are gathered from both the guessed title and
+Wikipedia's own search, and the one whose summary shares the most
+vocabulary with the question wins. A perfect-scoring direct hit skips
+the search entirely, which halves the requests for the commonest shape
+("What is X?") and keeps well clear of Wikimedia's rate limits.
+
+**Offline circuit breaker.** A connection failure (as opposed to a
+rejected key, which proves the network is up) opens a breaker for
+`offline_cooldown_seconds`. Without it, every question asked with no
+internet pays a full timeout *per source* before failing — two sources at
+8s each turns a chat into a 16-second wait per message. With it, unknown
+questions fail in about 0.1s and everything already learned still
+answers instantly.
+
 Every external failure degrades to `ok=False` with a reason — the
 pipeline never raises, and no unsanitized web text ever leaves it. Web
-content is DATA: it is only ever placed in the `[WEB]` block of the
-system prompt, never interpreted as instructions, and recognizable
-injection strings are dropped before storage.
+content is DATA: it is never interpreted as instructions, and
+recognizable injection strings are dropped before storage.
+
+## Self-directed study (`knowledge/study.py`) — Aila 2.1
+
+The knowledge base already grows passively: every researched answer is
+stored and served offline forever after. Study makes that growth active.
+
+Once a day at startup, Aila re-visits a bounded number of topics —
+**questions the user actually asked and she failed to answer** (parked as
+`knowledge_candidates` by the pipeline) first, then a seed list for a
+fresh install. Whatever she learns is answerable with no internet from
+then on.
+
+Four constraints keep it from being a nuisance:
+
+- **Bounded** — `AILA_STUDY_TOPICS_PER_DAY` lookups is the entire cost.
+- **Once a day** — the last run is recorded in `knowledge_meta`, so ten
+  restarts study once, and a laptop closed for a week doesn't try to
+  catch up seven times. A corrupt or future timestamp is treated as
+  "never ran" rather than blocking study forever.
+- **Never fatal** — every failure is caught and counted; study cannot
+  stop Aila from starting. It stops early when the offline breaker trips
+  rather than waiting out a timeout per topic.
+- **Never invents** — study *is* the normal research path, so everything
+  stored passed the same extraction, on-topic gating, confidence scoring
+  and conflict detection as any answer given directly to a user.
+
+`/study <topic>` runs one lookup on demand; `/knows` reports how much has
+been learned and which sources are live.
+
+**Live verification.** The test suite is entirely offline (fakes, so it
+stays meaningful in CI and doesn't hammer Wikimedia). What fakes cannot
+prove — that the real API still returns what we parse — was checked by
+hand against live Wikipedia for English and Portuguese lookups, a
+disambiguation case, a missing page, and a full `chat.py` session
+including a daily-study round.
 
 ## Tool routing (`tools/router.py`) — Aila 2.0
 
@@ -364,16 +432,14 @@ emit structured tool calls). First match wins:
 5. **Stored knowledge** → a relevant, confident, non-conflicted fact is
    answered directly (offline, no API call).
 6. **Web research** → only for factual questions the knowledge base
-   missed, when Serper is configured. The result is **always served as
-   text**: high confidence → the answer verbatim (and stored for next
-   time); lower confidence, or an extraction miss with usable snippets →
+   missed. The result is **always served as text**: high confidence →
+   the answer verbatim (and stored for next time); lower confidence →
    the same text behind an explicit "I'm not fully certain, but here's
    what I found". If the search succeeded and genuinely found nothing,
    the router says so; if the search itself failed it reports *why* in
    plain language (rejected key / rate limit / unreachable), with no
-   status codes and no key material. Only "no API key configured" falls
-   through to generation, so an offline install behaves exactly as it did
-   before web research existed.
+   status codes and no key material. Only "no source enabled at all"
+   falls through to generation.
 7. **Nothing** → plain model generation.
 
 **Why the model never summarizes web results:** at ~20M parameters,

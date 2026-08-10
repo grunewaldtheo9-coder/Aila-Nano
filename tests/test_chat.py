@@ -118,7 +118,7 @@ def test_support_command_prints_the_address_and_a_diagnostic_report(engine, caps
 
     assert "mailailacompanysolutions@gmail.com" in out
     # The report is what makes a bug findable — it must carry the basics.
-    for expected in ("Aila Nano version", "Python", "Trained model", "Web search"):
+    for expected in ("Aila Nano version", "Python", "Trained model", "Lookup sources", "Facts learned"):
         assert expected in out
     # Nothing is sent on the user's behalf.
     assert "Nothing is sent automatically" in out

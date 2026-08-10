@@ -72,10 +72,14 @@ interface, just needs these set before it starts).
 | `AILA_KNOWLEDGE_STORE_DB` | `knowledge/data/aila_knowledge.db` | Global knowledge + web-research cache (SQLite) |
 | `AILA_STORAGE_BACKEND` | `sqlite` | `sqlite` (fully supported) or `firestore` (adapter only — needs `firebase-admin` + `GOOGLE_APPLICATION_CREDENTIALS`; falls back to SQLite with a warning) |
 | `SERPER_API_KEY` | *(empty)* | Serper web-search key. **Secret** — set it only in the environment or `.env` (gitignored), never in code |
-| `AILA_WEB_SEARCH_ENABLED` | `true` | Master switch for web research (no key = silently offline) |
+| `AILA_WEB_SEARCH_ENABLED` | `true` | Master switch for Serper (no key = Wikipedia only) |
 | `AILA_WEB_MAX_RESULTS` | `5` | Results requested per Serper search |
-| `AILA_WEB_TIMEOUT_SECONDS` | `8` | Serper request timeout |
+| `AILA_WEB_TIMEOUT_SECONDS` | `8` | Request timeout, both sources |
 | `AILA_WEB_CACHE_TTL_HOURS` | `168` | How long cached web results stay valid |
+| `AILA_WIKIPEDIA_ENABLED` | `true` | Wikipedia source — free, no API key, no quota. Aila's default source; keeps lookups working with no Serper key |
+| `AILA_WIKIPEDIA_MAX_RESULTS` | `3` | Article summaries considered per lookup before ranking |
+| `AILA_DAILY_STUDY` | `true` | Once-a-day self-directed study at startup |
+| `AILA_STUDY_TOPICS_PER_DAY` | `3` | Hard cap on lookups per study round — the entire cost of the feature |
 | `AILA_RETRIEVAL_TOP_K` | `3` | Max memories/snippets injected per turn |
 | `AILA_RELEVANCE_THRESHOLD` | `0.2` | Lexical-overlap gate below which nothing is injected |
 

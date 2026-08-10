@@ -70,7 +70,14 @@ _INJECTION_PATTERNS = [
 
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
-MAX_SNIPPET_CHARS = 400
+# Upper bound on one piece of retrieved text. Raised from 400 when
+# Wikipedia became a source: encyclopedia summaries are typically
+# 300–800 characters of finished prose, and capping at 400 chopped the
+# best answers mid-sentence. Web text is served directly rather than
+# injected into the model's prompt, so the old prompt-budget reason for a
+# tight cap no longer applies; this is now just a sanity bound on
+# untrusted input.
+MAX_SNIPPET_CHARS = 600
 
 # Search engines return snippets already cut off mid-thought, marked with
 # a trailing ellipsis ("... insurance, securities, ..."). Serving that

@@ -22,6 +22,23 @@ SAMPLE_FINETUNE = REPO_ROOT / "datasets" / "sample" / "finetune_sample.jsonl"
 AILA_KNOWLEDGE = REPO_ROOT / "datasets" / "aila_knowledge" / "aila_company.jsonl"
 
 
+@pytest.fixture(autouse=True)
+def _no_network_by_default(monkeypatch):
+    """Keep the suite offline and deterministic.
+
+    Wikipedia needs no API key, so `AilaEngine` builds a Wikipedia client
+    by default — which would make any test that sends a factual question
+    through the engine hit the real network, turning a unit suite into a
+    flaky integration suite (and hammering Wikimedia from CI). Every
+    live-source setting is therefore off unless a test opts back in by
+    setting the variable itself, and the research paths are tested
+    against fakes.
+    """
+    monkeypatch.setenv("AILA_WIKIPEDIA_ENABLED", "false")
+    monkeypatch.setenv("AILA_DAILY_STUDY", "false")
+    monkeypatch.setenv("SERPER_API_KEY", "")
+
+
 @pytest.fixture(scope="session")
 def tokenizer(tmp_path_factory) -> AilaTokenizer:
     out_dir = tmp_path_factory.mktemp("tokenizer_artifacts")
