@@ -167,6 +167,16 @@ _INTENTS: list[tuple[str, tuple[str, ...], str, str]] = [
         "Sem problema. É só me chamar quando precisar de algo.",
     ),
     (
+        "confusion",
+        (
+            "what", "wat", "wut", "huh", "hu", "come again", "say that again",
+            "i dont get it",
+            "que", "o que", "oi que", "hein", "como assim", "nao entendi",
+        ),
+        "Sorry — I'm not sure what you mean. Could you ask that a different way?",
+        "Desculpa — não entendi. Você pode perguntar de outro jeito?",
+    ),
+    (
         "farewell",
         (
             "bye", "goodbye", "good bye", "see you", "see ya", "later",
@@ -201,6 +211,7 @@ _PT_PHRASES: frozenset[str] = frozenset(
         "kk", "kkk", "sim", "isso", "exatamente", "nao", "não", "nada",
         "tchau", "ate logo", "adeus", "ate mais", "falou",
         "bah", "ue", "eita", "poxa", "nossa", "caramba",
+        "que", "o que", "hein", "como assim", "nao entendi",
     }
 )
 

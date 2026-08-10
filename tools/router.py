@@ -100,9 +100,14 @@ _FIRST_PERSON_POSSESSIVE = re.compile(r"\b(my|mine|meu|minha|meus|minhas)\b", re
 # nothing); the Portuguese ones are not, and listing them here is
 # deliberately narrower than adding them to STOPWORDS, which would
 # change relevance scoring everywhere.
+# Note the absence of "what": a bare "What?" or "What??" is confusion
+# ("I didn't understand"), not a request for more on the same topic.
+# Treating it as a follow-up replayed the previous answer word for word,
+# which is precisely what the user was complaining about when they typed
+# it. tools/smalltalk.py answers it as confusion instead.
 _FOLLOW_UP_WORDS: frozenset[str] = frozenset(
     {
-        "when", "where", "why", "who", "what", "how", "which", "whose",
+        "when", "where", "why", "who", "how", "which", "whose",
         "quando", "onde", "porque", "quem", "qual", "quais", "como",
         "quanto", "quanta", "quantos", "quantas",
     }

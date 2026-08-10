@@ -72,10 +72,15 @@ class WikipediaUnavailableError(WikipediaError):
 # Words that open a question rather than name its subject. Stripped from
 # the front of a query before guessing a page title, because Wikipedia's
 # title lookup wants "Bambu Lab", not "who created bambu lab".
+#
+# The wh-words accept a bare "s" as well as "'s" — people drop the
+# apostrophe constantly, and leaving "Whats" attached changed what
+# Wikipedia's own search returned for "Whats the biggest youtuber in the
+# world?" from MrBeast to an article about YouTuber *films*.
 _LEADING_QUESTION_WORDS = re.compile(
     r"^\s*(?:"
-    r"who(?:'s|\s+is|\s+are|\s+was|\s+were)?|what(?:'s|\s+is|\s+are|\s+was|\s+were)?|"
-    r"when(?:\s+was|\s+were|\s+did|\s+is)?|where(?:\s+is|\s+are|\s+was)?|"
+    r"who(?:'s|s|\s+is|\s+are|\s+was|\s+were)?|what(?:'s|s|\s+is|\s+are|\s+was|\s+were)?|"
+    r"when(?:'s|s|\s+was|\s+were|\s+did|\s+is)?|where(?:'s|s|\s+is|\s+are|\s+was)?|"
     r"which|why|how(?:\s+many|\s+much|\s+big|\s+old)?|"
     r"tell\s+me\s+about|explain|describe|define|"
     r"created|creates|make[sd]?|made|founded|found|built|build|invented|owns|owned|"

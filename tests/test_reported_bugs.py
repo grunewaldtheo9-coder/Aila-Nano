@@ -432,9 +432,10 @@ def test_filler_with_a_question_mark_is_still_filler():
     assert match_smalltalk("Nice?")[0] == "praise"
     assert match_smalltalk("Bro?")[0] == "address"
 
-    # Real questions are still untouched.
-    assert match_smalltalk("What?") is None
+    # Real questions are still untouched. ("What?" on its own is
+    # confusion, not a question — see the test below.)
     assert match_smalltalk("Who?") is None
+    assert match_smalltalk("When?") is None
     assert match_smalltalk("ok so what is the capital of France?") is None
 
 
@@ -644,3 +645,42 @@ def test_previous_message_is_none_when_there_is_only_filler(
         assert agent._previous_user_message("c2") is None
     finally:
         memory.close()
+
+
+def test_a_bare_what_is_confusion_not_a_follow_up(kb):
+    """Reported transcript:
+
+        You: Whats the biggest youtuber in the world?
+        Aila: YouTuber film: A YouTuber film ...
+        You: What??
+        Aila: YouTuber film: A YouTuber film ...   <- repeated verbatim
+
+    "What??" meant "I did not understand", but it was treated as a
+    follow-up and replayed the answer the user was objecting to."""
+    for message in ("What?", "What??", "what", "Huh?", "O que?", "Hein?"):
+        match = match_smalltalk(message)
+        assert match is not None and match[0] == "confusion", message
+
+    kb.store.add_knowledge("Who founded Apple?", "Apple was founded by Steve Jobs.", confidence=0.9)
+    router = ToolRouter(knowledge=kb)
+    result = router.route("What??", previous_user_message="Who founded Apple?")
+    assert result.tool_used == "smalltalk:confusion"
+    assert "Steve Jobs" not in result.direct_reply
+
+    # Real follow-ups are untouched.
+    assert router.route("When?", previous_user_message="Who founded Apple?").tool_used == "knowledge"
+
+
+def test_apostrophe_less_contractions_reach_the_right_wikipedia_article():
+    """"Whats the biggest youtuber in the world?" searched Wikipedia with
+    "Whats" still attached, which returned an article about YouTuber
+    *films*. Stripping it is what makes the search find MrBeast."""
+    from webresearch.wikipedia import extract_subject
+
+    assert extract_subject("Whats the biggest youtuber in the world?") == (
+        "biggest youtuber in the world"
+    )
+    assert extract_subject("Whos the president of Brazil?") == "president of Brazil"
+    assert extract_subject("Wheres the Eiffel Tower?") == "Eiffel Tower"
+    # The apostrophe form already worked and must keep working.
+    assert extract_subject("What's photosynthesis?") == "photosynthesis"
