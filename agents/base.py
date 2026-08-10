@@ -14,11 +14,12 @@ import torch
 
 from finetuning.format import format_prompt_for_inference
 from memory.commands import guess_category, parse_memory_command
-from memory.lexical import lexical_overlap_score
+from memory.lexical import lexical_overlap_score, tokenize
 from memory.manager import MemoryContext, MemoryManager
 from model.generate import DEFAULT_NO_REPEAT_NGRAM_SIZE, generate, generate_stream
 from model.transformer import AilaNanoGPT
 from tokenizer.tokenizer import AilaTokenizer
+from tools.smalltalk import match_smalltalk
 from vectordb.semantic_index import SemanticIndex
 
 logger = logging.getLogger(__name__)
@@ -186,14 +187,32 @@ class Agent:
             self.memory.add_turn(conversation_id, "assistant", reply, agent_type=self.name)
 
     def _previous_user_message(self, conversation_id: str) -> str | None:
-        """The user's most recent prior turn in this conversation, used by
-        the tool router to resolve short follow-ups ("When?"). None when
-        there's no memory or no prior user turn."""
+        """The user's most recent *substantive* prior turn, used by the
+        tool router to resolve short follow-ups ("When?").
+
+        Filler is skipped. A real transcript went:
+
+            You: Who founded Bambu Lab?   -> answered
+            You: Ok?                      -> "Got it."
+            You: When?                    -> the Wikipedia article on "OK"
+
+        because "Ok?" was the immediately preceding user turn, so the
+        follow-up resolved against it. A follow-up means "more about what
+        we were actually discussing", and an acknowledgement is not that.
+        """
         if not self.memory:
             return None
-        history = self.memory.conversation.get_history(conversation_id, max_turns=6)
-        user_turns = [h["content"] for h in history if h["role"] == "user"]
-        return user_turns[-1] if user_turns else None
+        history = self.memory.conversation.get_history(conversation_id, max_turns=12)
+        for turn in reversed(history):
+            if turn["role"] != "user":
+                continue
+            content = (turn["content"] or "").strip()
+            if not content or match_smalltalk(content) is not None:
+                continue
+            if not tokenize(content):
+                continue  # nothing searchable to inherit
+            return content
+        return None
 
     # -- explicit memory commands -------------------------------------------
 

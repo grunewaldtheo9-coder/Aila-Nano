@@ -16,7 +16,6 @@ ready-to-paste report is the honest version, and it works offline.
 from __future__ import annotations
 
 import platform
-import sys
 
 SUPPORT_EMAIL = "mailailacompanysolutions@gmail.com"
 

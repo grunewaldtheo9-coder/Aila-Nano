@@ -415,16 +415,27 @@ def test_filler_phrases_map_to_the_right_intent(message, intent):
 
 
 def test_greeting_questions_are_still_small_talk():
-    """The question-mark guard is there to keep "Ok?" and "Nice?" on the
-    normal question path — but it also silently blocked the most common
-    opening line of all, sending "How are you?" back to generation."""
+    """A question mark once disqualified every filler phrase, which
+    silently blocked the most common opening line of all and sent "How
+    are you?" back to generation."""
     for message in ("How are you?", "How's it going?", "Tudo bem?", "Beleza?"):
         match = match_smalltalk(message)
         assert match is not None and match[0] == "how_are_you", message
 
-    # ...while genuine questions still fall through.
-    assert match_smalltalk("Ok?") is None
-    assert match_smalltalk("Nice?") is None
+
+def test_filler_with_a_question_mark_is_still_filler():
+    """"Ok?" and "Nice?" used to be sent to the "normal question path" —
+    which at this scale is model generation, i.e. nonsense. Matching is
+    exact against a closed table of short phrases, so a real question
+    cannot be swallowed by allowing the question mark."""
+    assert match_smalltalk("Ok?")[0] == "acknowledgement"
+    assert match_smalltalk("Nice?")[0] == "praise"
+    assert match_smalltalk("Bro?")[0] == "address"
+
+    # Real questions are still untouched.
+    assert match_smalltalk("What?") is None
+    assert match_smalltalk("Who?") is None
+    assert match_smalltalk("ok so what is the capital of France?") is None
 
 
 def test_every_phrase_in_the_table_is_reachable():
@@ -445,7 +456,6 @@ def test_portuguese_filler_gets_a_portuguese_reply():
     "message",
     [
         "ok so what is the capital of France?",  # starts with filler, has content
-        "Ok?",                                    # a question, not filler
         "no idea what you mean by that",          # starts with "no"
         "Write me a nice poem",                   # contains "nice"
         "",
@@ -549,3 +559,88 @@ def test_a_missing_file_still_reports_as_missing(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         load_checkpoint(str(tmp_path / "nope.pt"))
+
+
+def test_a_short_question_does_not_inherit_the_previous_topic(kb):
+    """Found in a bug sweep, and it is the original "he repeats things"
+    complaint in another guise: follow-up expansion fired for *any*
+    short question-shaped message, so after "Who founded Apple?" the
+    replies to "Ok?", "Hi?" and "Bro?" were all the Apple answer again."""
+    kb.store.add_knowledge(
+        "Who founded Apple?",
+        "Apple was founded by Steve Jobs, Steve Wozniak and Ronald Wayne.",
+        confidence=0.9,
+    )
+    router = ToolRouter(knowledge=kb)
+
+    # A genuine follow-up carries no subject of its own and still works.
+    for follow_up in ("When?", "Why?", "E quando?", "Onde?"):
+        result = router.route(follow_up, previous_user_message="Who founded Apple?")
+        assert result.tool_used == "knowledge", follow_up
+        assert "Steve Jobs" in result.direct_reply
+
+    # Anything that carries its own word must not inherit the topic.
+    for filler in ("Ok?", "Hi?", "Sure?", "Bro?", "Nice?"):
+        result = router.route(filler, previous_user_message="Who founded Apple?")
+        assert result.tool_used != "knowledge", filler
+        assert "Steve Jobs" not in (result.direct_reply or "")
+
+
+def test_a_follow_up_skips_filler_and_resolves_against_the_real_question(
+    tiny_model, tokenizer, tmp_path
+):
+    """Found in a bug sweep. Real transcript:
+
+        You: Who founded Bambu Lab?   -> answered
+        You: Ok?                      -> "Got it."
+        You: When?                    -> the Wikipedia article on "OK"
+
+    "Ok?" was the immediately preceding user turn, so the follow-up
+    resolved against it. A follow-up means "more about what we were
+    actually discussing"; an acknowledgement is not that.
+    """
+    from agents.registry import get_agent
+    from memory.manager import MemoryManager
+    from vectordb.embedder import AilaEmbedder
+
+    embedder = AilaEmbedder(tiny_model, tokenizer)
+    memory = MemoryManager(
+        embedder, db_path=str(tmp_path / "m.db"), faiss_path=str(tmp_path / "m.faiss")
+    )
+    try:
+        agent = get_agent("general", tiny_model, tokenizer, memory=memory)
+        conversation = "c1"
+        for role, content in [
+            ("user", "Who founded Bambu Lab?"),
+            ("assistant", "Bambu Lab was founded by engineers from DJI."),
+            ("user", "Ok?"),
+            ("assistant", "Got it. Anything else I can help with?"),
+        ]:
+            memory.add_turn(conversation, role, content)
+
+        assert agent._previous_user_message(conversation) == "Who founded Bambu Lab?"
+    finally:
+        memory.close()
+
+
+def test_previous_message_is_none_when_there_is_only_filler(
+    tiny_model, tokenizer, tmp_path
+):
+    from agents.registry import get_agent
+    from memory.manager import MemoryManager
+    from vectordb.embedder import AilaEmbedder
+
+    embedder = AilaEmbedder(tiny_model, tokenizer)
+    memory = MemoryManager(
+        embedder, db_path=str(tmp_path / "m2.db"), faiss_path=str(tmp_path / "m2.faiss")
+    )
+    try:
+        agent = get_agent("general", tiny_model, tokenizer, memory=memory)
+        memory.add_turn("c2", "user", "Hi")
+        memory.add_turn("c2", "assistant", "Hi! How can I help you today?")
+        memory.add_turn("c2", "user", "Ok")
+        # Nothing substantive to inherit — better no antecedent than a
+        # wrong one.
+        assert agent._previous_user_message("c2") is None
+    finally:
+        memory.close()

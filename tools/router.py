@@ -87,6 +87,19 @@ _SELF_REFERENCE = re.compile(
 # a fabrication.
 _FIRST_PERSON_POSSESSIVE = re.compile(r"\b(my|mine|meu|minha|meus|minhas)\b", re.IGNORECASE)
 
+# Words a bare follow-up may consist of and nothing else. English
+# interrogatives are already stopwords (so they tokenize away to
+# nothing); the Portuguese ones are not, and listing them here is
+# deliberately narrower than adding them to STOPWORDS, which would
+# change relevance scoring everywhere.
+_FOLLOW_UP_WORDS: frozenset[str] = frozenset(
+    {
+        "when", "where", "why", "who", "what", "how", "which", "whose",
+        "quando", "onde", "porque", "quem", "qual", "quais", "como",
+        "quanto", "quanta", "quantos", "quantas",
+    }
+)
+
 _NO_MEMORY_REPLY_EN = (
     "I don't have that in my memory yet. You can tell me with: "
     '"remember that ..."'
@@ -148,10 +161,14 @@ _SEARCH_ERROR_REPLIES: dict[str, tuple[str, str]] = {
 class RouteResult:
     """What the router decided for one message.
 
-    Exactly one of:
-    - direct_reply set  → reply with this text; skip generation entirely.
-    - context_snippets  → generate normally, injecting these as [WEB] data.
-    - neither           → generate normally with no additions.
+    - direct_reply set → reply with this text; skip generation entirely.
+    - neither field set → generate normally.
+
+    `context_snippets` (rendered as a `[WEB]` block by agents/base.py) is
+    part of the contract for a future larger model, but nothing populates
+    it today: at ~20M parameters, generation given retrieved text
+    overwrites it rather than summarizing it, so research results are
+    served as text instead. See the module docstring.
     """
 
     direct_reply: str | None = None
@@ -315,6 +332,15 @@ class ToolRouter:
             _QUESTION_OPENERS.match(message)
         )
         if not looks_like_question:
+            return message
+        # The message must carry no subject of its own. Without this,
+        # *any* short question-shaped message inherited the previous
+        # topic: after "Who founded Apple?", the replies to "Ok?", "Hi?"
+        # and "Bro?" were all the Apple answer again — which is precisely
+        # the "he repeats things" complaint this project started from.
+        # "When?" and "E quando?" have nothing but an interrogative and
+        # genuinely need the previous turn; "Ok?" does not.
+        if tokenize(message) - _FOLLOW_UP_WORDS:
             return message
         if not tokenize(previous_user_message):
             return message
