@@ -26,8 +26,12 @@ import uuid
 from engine import AilaEngine, EngineSettings
 from engine.env import load_env
 from engine.support import SUPPORT_EMAIL, support_message
+from tools.identity import PRODUCT_NAME, RELEASE_STAGE
 
-VERSION = "2.1"
+# Public release name. Comes from tools/identity.py so the banner, the
+# support report and Aila's own answers can never disagree about what she
+# is called.
+VERSION = RELEASE_STAGE
 
 COMMANDS = """\
 Commands:
@@ -55,7 +59,7 @@ You can also just type things naturally, e.g.:
 
 def print_banner(device: str) -> None:
     print("=====================================")
-    print(f"Aila Nano v{VERSION}")
+    print(f"{PRODUCT_NAME} {VERSION}")
     print("Small Language Model")
     print(f"Python {platform.python_version()}")
     print(f"{'GPU' if device == 'cuda' else 'CPU'} Mode")

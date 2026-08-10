@@ -61,10 +61,10 @@ class EngineSettings:
     # in at module-import time — matters for tests, and for any process
     # that constructs EngineSettings more than once with a changed
     # environment.
-    # Prefers the 2.0 (~19.8M) checkpoint, falling back to the 1.0
-    # (~10.9M) one. An existing 1.0-only install therefore keeps working
-    # untouched, and adding the 2.0 file is all it takes to upgrade —
-    # no config edit, no reinstall.
+    # Prefers the shipped `nano_20m` (~19.8M) checkpoint, falling back to
+    # the older `nano_10m` (~10.9M) one. An existing install therefore
+    # keeps working untouched, and dropping in the newer file is all it
+    # takes to upgrade — no config edit, no reinstall.
     checkpoint_path: str = field(
         default_factory=lambda: _env("AILA_CHECKPOINT", "checkpoints/finetune_20m/best.pt")
     )
@@ -89,7 +89,7 @@ class EngineSettings:
     )
     default_agent: str = field(default_factory=lambda: _env("AILA_DEFAULT_AGENT", "general"))
 
-    # -- Aila 2.0: global knowledge store + web research -------------------
+    # -- Global knowledge store + web research -----------------------------
     knowledge_store_db: str = field(
         default_factory=lambda: _env("AILA_KNOWLEDGE_STORE_DB", "knowledge/data/aila_knowledge.db")
     )
@@ -109,7 +109,7 @@ class EngineSettings:
         default_factory=lambda: _env_float("AILA_WEB_CACHE_TTL_HOURS", 168.0)
     )
 
-    # -- Aila 2.1: Wikipedia + self-directed study -------------------------
+    # -- Wikipedia + self-directed study -----------------------------------
     # Wikipedia needs no API key and no account, so it is on by default —
     # it is what keeps Aila able to look things up when no Serper key is
     # configured (or the key stops working).

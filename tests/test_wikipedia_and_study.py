@@ -639,3 +639,57 @@ def test_study_survives_a_research_layer_that_raises(tmp_path, tokenizer, monkey
         learned, message = engine.study("photosynthesis")
         assert learned is False
         assert "couldn't study that" in message
+
+
+def test_study_stops_when_its_time_budget_is_spent(store, kb):
+    """`max_topics` alone does not bound the wait. A source that is slow
+    but not *failing* never trips the offline breaker, so three topics at
+    four requests each could hold startup for over a minute."""
+    import time as _time
+
+    class Slow:
+        offline = False
+
+        def __init__(self):
+            self.calls = 0
+
+        def research(self, query):
+            self.calls += 1
+            _time.sleep(0.05)
+            from webresearch.pipeline import ResearchOutcome
+
+            return ResearchOutcome(ok=False, reason="no_results")
+
+    slow = Slow()
+    session = StudySession(store, slow, max_topics=10, time_budget_seconds=0.12)
+    session.run()
+    assert slow.calls < 10, "the round must stop on time, not on count alone"
+
+
+def test_cache_keys_separate_languages(store, kb):
+    """"What is Petrobras?" and "O que é Petrobras?" both normalize to
+    `petrobras`. Without the language in the key, the Portuguese answer
+    would be served to the English question for the whole cache TTL."""
+    wiki = FakeWikipedia(
+        pages={
+            "Petrobras": _page("Petrobras", "Petrobras is a Brazilian state-owned energy company."),
+        }
+    )
+    pipe = ResearchPipeline(None, store, kb, wikipedia=wiki)
+
+    en = pipe.research("What is Petrobras?")
+    assert en.ok and en.from_cache is False
+
+    requests_before = len(wiki.requests)
+    pt = pipe.research("O que é Petrobras?")
+    # A different language must reach the source again, not reuse the
+    # English cache entry.
+    assert len(wiki.requests) > requests_before
+    assert pt.from_cache is False
+
+    # ...and asking the same question again in the same language does hit
+    # the cache.
+    requests_before = len(wiki.requests)
+    again = pipe.research("What is Petrobras?")
+    assert again.from_cache is True
+    assert len(wiki.requests) == requests_before

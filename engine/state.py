@@ -249,7 +249,11 @@ class AilaEngine:
         research = getattr(self.router, "research", None)
         if research is None:
             return []
-        return [name for name, _, _ in research._providers()]
+        try:
+            return [name for name, _, _ in research._providers()]
+        except Exception:  # noqa: BLE001 — a status readout must not crash
+            logger.exception("could not list research sources")
+            return []
 
     @property
     def known_fact_count(self) -> int:

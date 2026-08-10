@@ -31,12 +31,27 @@ import re
 # to the model itself.
 COMPANY = "Aila Company Solutions"
 FOUNDERS = "Theo Grunewald Hames and Guilherme Grunewald Benkendorf"
+# Same two people, joined the Portuguese way. Interpolating the English
+# string into a Portuguese sentence produced "fundada por Theo Grunewald
+# Hames and Guilherme Grunewald Benkendorf" — correct facts, wrong
+# language, in the answer users ask for most.
+FOUNDERS_PT = "Theo Grunewald Hames e Guilherme Grunewald Benkendorf"
 PARAMETER_COUNT = "about 20 million"
+
+# The product's public name. Deliberately a release *stage* rather than a
+# number: "2.0" implied a finished second edition, when this is the first
+# release anyone outside the project has used. Single source of truth —
+# `chat.py`'s banner, the deterministic answers below, and the identity
+# training data all read it, and
+# tests/test_identity_facts_consistency.py fails if they drift apart.
+PRODUCT_NAME = "Aila Nano"
+RELEASE_STAGE = "Beta"
+FULL_NAME = f"{PRODUCT_NAME} {RELEASE_STAGE}"
 
 _ANSWERS_EN: dict[str, str] = {
     "creator": (
         f"I was created by {COMPANY}, founded by {FOUNDERS}. "
-        "I'm Aila Nano, an original small language model — my architecture, "
+        f"I'm {FULL_NAME}, an original small language model — my architecture, "
         "tokenizer and weights were all built and trained from scratch, not "
         "wrapped around another company's model."
     ),
@@ -44,14 +59,15 @@ _ANSWERS_EN: dict[str, str] = {
         f"{COMPANY} was founded by {FOUNDERS}."
     ),
     "what_are_you": (
-        f"I'm Aila Nano, a small language model with {PARAMETER_COUNT} parameters, "
+        f"I'm {FULL_NAME}, a small language model with {PARAMETER_COUNT} parameters, "
         f"built and trained from scratch by {COMPANY}. I run on ordinary "
-        "hardware — no GPU required."
+        "hardware — no GPU required. Beta means I'm still being improved, so "
+        "some answers will be rough."
     ),
     "name": (
-        "My name is Aila Nano. The 'Aila' comes from "
+        f"My name is {FULL_NAME}. The 'Aila' comes from "
         f"{COMPANY}, my creator, and 'Nano' reflects how small I am — "
-        f"{PARAMETER_COUNT} parameters."
+        f"{PARAMETER_COUNT} parameters. I'm in beta, so I'm still improving."
     ),
     "size": (
         f"I have {PARAMETER_COUNT} parameters, which makes me a small "
@@ -67,22 +83,24 @@ _ANSWERS_EN: dict[str, str] = {
 
 _ANSWERS_PT: dict[str, str] = {
     "creator": (
-        f"Fui criado pela {COMPANY}, fundada por {FOUNDERS}. "
-        "Sou a Aila Nano, um modelo de linguagem pequeno e original — minha "
+        f"Fui criado pela {COMPANY}, fundada por {FOUNDERS_PT}. "
+        f"Sou a {FULL_NAME}, um modelo de linguagem pequeno e original — minha "
         "arquitetura, meu tokenizador e meus pesos foram construídos e "
         "treinados do zero."
     ),
     "company_founders": (
-        f"A {COMPANY} foi fundada por {FOUNDERS}."
+        f"A {COMPANY} foi fundada por {FOUNDERS_PT}."
     ),
     "what_are_you": (
-        f"Sou a Aila Nano, um modelo de linguagem pequeno com cerca de 20 milhões "
+        f"Sou a {FULL_NAME}, um modelo de linguagem pequeno com cerca de 20 milhões "
         f"de parâmetros, criado e treinado do zero pela {COMPANY}. Eu rodo em "
-        "hardware comum — não preciso de placa de vídeo."
+        "hardware comum — não preciso de placa de vídeo. Beta quer dizer que "
+        "ainda estou sendo melhorada, então algumas respostas saem imperfeitas."
     ),
     "name": (
-        f"Meu nome é Aila Nano. 'Aila' vem da {COMPANY}, minha criadora, e "
-        "'Nano' reflete o meu tamanho — cerca de 20 milhões de parâmetros."
+        f"Meu nome é {FULL_NAME}. 'Aila' vem da {COMPANY}, minha criadora, e "
+        "'Nano' reflete o meu tamanho — cerca de 20 milhões de parâmetros. "
+        "Estou em beta, ainda melhorando."
     ),
     "size": (
         "Tenho cerca de 20 milhões de parâmetros, o que me torna um modelo de "

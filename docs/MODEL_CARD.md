@@ -1,10 +1,11 @@
-# Model Card: Aila Nano
+# Model Card: Aila Nano Beta
 
 ## Summary
 
-Two model generations share this codebase:
+Two architecture sizes share this codebase; **Aila Nano Beta ships the
+`nano_20m` weights**:
 
-| | Aila Nano 1.0 (`nano_10m`) | Aila Nano 2.0 (`nano_20m`) |
+| | `nano_10m` (earlier size) | `nano_20m` (shipped in Aila Nano Beta) |
 |---|---|---|
 | Parameters (measured) | 10,877,184 | 19,796,160 |
 | Layers | 12 | 15 |
@@ -23,13 +24,13 @@ Common facts:
 | Model type | Decoder-only transformer (causal language model) |
 | Precision | fp32 training-compatible; bf16/fp16 autocast supported |
 | License | Apache 2.0 (code); see `datasets/README.md` for data licenses |
-| Languages | Primarily English. The byte-fallback tokenizer round-trips any UTF-8 (Portuguese included) losslessly, and 2.0's fine-tuning includes basic pt-BR greetings/identity phrases — but the pretraining corpus is English-only, so genuine Portuguese fluency is out of scope at this scale. |
+| Languages | Primarily English. The byte-fallback tokenizer round-trips any UTF-8 (Portuguese included) losslessly, and the shipped fine-tuning includes basic pt-BR greetings/identity phrases — but the pretraining corpus is English-only, so genuine Portuguese fluency is out of scope at this scale. |
 
 Both parameter counts are measured programmatically (`sum(p.numel())`,
 reproducible via `scripts/count_params.py`), not inferred from configs.
 The trained context is 256 tokens for both generations: on CPU (no
-flash-attention kernel) seq-512 training would have put a single 2.0
-epoch past 9 hours; the requested 4096-token context is not feasible on
+flash-attention kernel) seq-512 training would have put a single
+`nano_20m` epoch past 9 hours; a 4096-token context is not feasible on
 CPU at this scale.
 
 ## Aila Company Solutions
@@ -53,8 +54,10 @@ that teaches the model this fact about itself.
 
 ## Out of scope / limitations
 
-- **Scale-appropriate expectations.** At ~19.8M parameters (2.0; ~10.9M
-  for the 1.0 preset), Aila Nano has
+- **Beta.** This is an early release. It works, and it is rough in
+  places; report problems to mailailacompanysolutions@gmail.com.
+- **Scale-appropriate expectations.** At ~19.8M parameters (`nano_20m`;
+  ~10.9M for `nano_10m`), Aila Nano has
   roughly 1/100th to 1/1000th the parameters of contemporary
   general-purpose chat models. It will not match their world knowledge,
   reasoning depth, or robustness to adversarial prompts. It is well

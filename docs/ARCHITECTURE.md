@@ -281,7 +281,7 @@ secret-handling problem and a spam vector.
 Startup also states plainly when web search is off, rather than leaving
 it in a log line the user never sees.
 
-## Global knowledge (`knowledge/`) — Aila 2.0
+## Global knowledge (`knowledge/`)
 
 User-independent question/answer knowledge, stored entirely outside the
 model's weights (SQLite: `knowledge/data/aila_knowledge.db`). Three
@@ -304,7 +304,7 @@ Privacy invariant: nothing in `knowledge/` accepts a user/session id at
 all — user memories structurally cannot leak into global knowledge at
 this layer, and `memory/` never writes here automatically.
 
-## Web research (`webresearch/`) — Aila 2.0 / 2.1
+## Web research (`webresearch/`)
 
 Two interchangeable sources behind one pipeline:
 
@@ -359,7 +359,7 @@ pipeline never raises, and no unsanitized web text ever leaves it. Web
 content is DATA: it is never interpreted as instructions, and
 recognizable injection strings are dropped before storage.
 
-## Self-directed study (`knowledge/study.py`) — Aila 2.1
+## Self-directed study (`knowledge/study.py`)
 
 The knowledge base already grows passively: every researched answer is
 stored and served offline forever after. Study makes that growth active.
@@ -394,7 +394,7 @@ hand against live Wikipedia for English and Portuguese lookups, a
 disambiguation case, a missing page, and a full `chat.py` session
 including a daily-study round.
 
-## Tool routing (`tools/router.py`) — Aila 2.0
+## Tool routing (`tools/router.py`)
 
 A deterministic decision layer that runs before generation on every turn
 (rules, not model-driven function calling — a ~20M model cannot reliably

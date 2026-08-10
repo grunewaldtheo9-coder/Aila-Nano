@@ -23,7 +23,15 @@ from pathlib import Path
 
 from model.config import nano_20m
 from model.transformer import AilaNanoGPT
-from tools.identity import COMPANY, FOUNDERS, _ANSWERS_EN, _ANSWERS_PT
+from tools.identity import (
+    COMPANY,
+    FOUNDERS,
+    FOUNDERS_PT,
+    FULL_NAME,
+    RELEASE_STAGE,
+    _ANSWERS_EN,
+    _ANSWERS_PT,
+)
 
 DATASET = Path(__file__).resolve().parent.parent / "datasets" / "aila_knowledge" / "aila_company.jsonl"
 
@@ -54,8 +62,44 @@ def test_company_and_founder_names_match_the_training_data():
 def test_served_answers_state_the_real_company_and_founders():
     for answers in (_ANSWERS_EN, _ANSWERS_PT):
         assert COMPANY in answers["creator"]
-        assert FOUNDERS in answers["creator"]
-        assert FOUNDERS in answers["company_founders"]
+    assert FOUNDERS in _ANSWERS_EN["creator"]
+    assert FOUNDERS in _ANSWERS_EN["company_founders"]
+    # Portuguese joins the two names with "e", not "and" — interpolating
+    # the English string produced "fundada por Theo ... and Guilherme ...",
+    # right facts in the wrong language.
+    assert FOUNDERS_PT in _ANSWERS_PT["creator"]
+    assert FOUNDERS_PT in _ANSWERS_PT["company_founders"]
+    assert " and " not in _ANSWERS_PT["company_founders"]
+
+
+def test_the_public_name_is_the_release_stage_not_a_version_number():
+    """The product is "Aila Nano Beta". A version number claimed a
+    finished edition; this is the first release anyone outside the
+    project has used."""
+    import chat
+
+    assert FULL_NAME == f"Aila Nano {RELEASE_STAGE}"
+    assert RELEASE_STAGE == "Beta"
+    # chat.py's banner and support report must not invent their own name.
+    assert chat.VERSION == RELEASE_STAGE
+
+    # Aila introduces herself by the full public name.
+    for answers in (_ANSWERS_EN, _ANSWERS_PT):
+        assert FULL_NAME in answers["what_are_you"]
+        assert FULL_NAME in answers["name"]
+
+    # ...and the training data teaches the same name.
+    assert any(FULL_NAME in output for output in _dataset_outputs())
+
+
+def test_no_version_number_is_presented_as_the_product_name():
+    import chat
+
+    for answers in (_ANSWERS_EN, _ANSWERS_PT):
+        for text in answers.values():
+            for stale in ("Aila Nano 2.0", "Aila Nano 2.1", "Aila Nano v2"):
+                assert stale not in text
+    assert "2.0" not in chat.VERSION
 
 
 def test_stated_parameter_count_matches_the_measured_architecture():

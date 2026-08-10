@@ -172,17 +172,27 @@ class ResearchPipeline:
     # -- provider plumbing --------------------------------------------------
 
     def _providers(self) -> list[tuple[str, object, str]]:
-        """(name, client, cache_prefix), best-first.
-
-        Serper keeps the empty cache prefix it has always used, so web
-        cache entries written by earlier versions stay valid.
-        """
+        """(name, client, cache_prefix), best-first. The prefix keeps each
+        source's cached results separate."""
         providers: list[tuple[str, object, str]] = []
         if self.wikipedia is not None:
             providers.append(("wikipedia", self.wikipedia, "wiki:"))
         if self.client is not None:
-            providers.append(("serper", self.client, ""))
+            providers.append(("serper", self.client, "serper:"))
         return providers
+
+    @staticmethod
+    def _cache_key(prefix: str, language: str, normalized_query: str) -> str:
+        """Source + language + question.
+
+        Language belongs in the key: both sources answer in the language
+        they were asked in, and `normalize_query` strips exactly the
+        function words that distinguish the two. "What is Petrobras?" and
+        "O que é Petrobras?" both normalize to `petrobras`, so without the
+        language a Portuguese answer would be served to an English
+        question (or the reverse) for the rest of the cache TTL.
+        """
+        return f"{prefix}{language}:{normalized_query}"
 
     @property
     def offline(self) -> bool:
@@ -216,7 +226,7 @@ class ResearchPipeline:
         failures: list[str] = []
         for name, client, prefix in providers:
             response, from_cache, failure = self._get_results(
-                name, client, query, prefix + cache_key, language
+                name, client, query, self._cache_key(prefix, language, cache_key), language
             )
             if response is None:
                 failures.append(failure or "search_failed")

@@ -46,12 +46,12 @@ The checkpoint file is not a real checkpoint. The usual cause: it was
 downloaded from GitHub's **"Download ZIP"** button, which substitutes a
 small text pointer for Git LFS files. Download `best.pt` from its own
 file page ("Download raw file"), or `git lfs pull`. A genuine checkpoint
-is ~130 MB (1.0) / ~240 MB (2.0); a pointer is a few hundred bytes.
+is ~130 MB (`nano_10m`) / ~240 MB (`nano_20m`); a pointer is a few hundred bytes.
 
 ### `RuntimeError: Error(s) in loading state_dict ... Missing key(s)`
 
-You're loading a checkpoint into a different architecture (e.g. 1.0
-weights into the 2.0 model). This is intentional — incompatible
+You're loading a checkpoint into a different architecture (e.g.
+`nano_10m` weights into the `nano_20m` model). This is intentional — incompatible
 checkpoints are never loaded silently. Each checkpoint stores its own
 config, so load it through `training.checkpoint.load_checkpoint` and
 build the model from `ckpt["config"]` rather than a hardcoded preset.
@@ -60,7 +60,7 @@ build the model from `ckpt["config"]` rather than a hardcoded preset.
 
 Exactly what it says: `AILA_CHECKPOINT` and `AILA_FALLBACK_CHECKPOINT`
 both point at files that don't exist, so responses will be noise. Check
-the path — for 2.0 it's `checkpoints/finetune_20m/best.pt`.
+the path — it's `checkpoints/finetune_20m/best.pt`.
 
 ---
 
@@ -69,10 +69,10 @@ the path — for 2.0 it's `checkpoints/finetune_20m/best.pt`.
 ### Replies are fluent-ish but garble names, numbers, or facts
 
 Expected at this scale. A ~20M-parameter model is a reasonable text
-generator and an unreliable fact repeater. This is precisely why 2.0
-answers everything it *knows exactly* deterministically (arithmetic,
+generator and an unreliable fact repeater. This is precisely why Aila
+answers everything she *knows exactly* deterministically (arithmetic,
 remembered facts, stored/researched knowledge) — see
-[ARCHITECTURE.md](ARCHITECTURE.md#tool-routing-toolsrouterpy--aila-20).
+[ARCHITECTURE.md](ARCHITECTURE.md#tool-routing-toolsrouterpy).
 If a specific fact matters, teach it:
 
 ```
@@ -81,7 +81,7 @@ remember that my project deadline is March 14
 
 ### Replies wander off into unrelated stories
 
-Two known causes, both already mitigated in 2.0:
+Two known causes, both already mitigated:
 
 1. **Sampling too loose.** Defaults are `temperature=0.2, top_k=4`
    (`agents/base.py::GenerationSettings`). Raising them noticeably

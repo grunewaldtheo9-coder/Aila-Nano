@@ -93,7 +93,7 @@ def nano_10m() -> GPTConfig:
 
 
 def nano_20m() -> GPTConfig:
-    """The Aila Nano 2.0 ~19.8M-parameter preset.
+    """The ~19.8M-parameter preset shipped in Aila Nano Beta.
 
     Measured programmatically (sum of p.numel() with tied embeddings):
     19,796,160 parameters. Sized against nearby candidates (320d x 16L =

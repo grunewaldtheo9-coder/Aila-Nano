@@ -1,4 +1,4 @@
-"""Tests for the Aila 2.0 knowledge base, web research pipeline, tool
+"""Tests for the knowledge base, web research pipeline, tool
 router, and calculator — everything added by the external-knowledge
 architecture. No test here touches the network: the Serper client is
 exercised against fakes/monkeypatched transports, exactly because these

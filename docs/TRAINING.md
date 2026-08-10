@@ -147,7 +147,7 @@ python chat.py
 
 See [docs/CONFIGURATION.md](CONFIGURATION.md) for all `AILA_*` env vars.
 
-## 6. Aila Nano 2.0 (~19.8M parameters)
+## 6. The shipped model (`nano_20m`, ~19.8M parameters)
 
 The 2.0 architecture is `model/config.py::nano_20m` (320d x 15 layers,
 19,796,160 parameters measured). The exact commands used for the real

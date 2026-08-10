@@ -1,16 +1,20 @@
-# Aila Nano
+# Aila Nano Beta
 
 **An original, from-scratch small language model — built, trained, and owned by [Aila Company Solutions](docs/MODEL_CARD.md#aila-company-solutions).**
 
-Aila Nano is a decoder-only transformer available in two generations —
-**1.0 at ~10.9M parameters** (10,877,184) and **2.0 at ~19.8M
-parameters** (19,796,160), both measured programmatically via
+*Beta: a working early release, not a finished product. It is genuinely
+usable and genuinely rough in places — please report problems to
+mailailacompanysolutions@gmail.com, or type `/support` in the chat.*
+
+Aila Nano is a decoder-only transformer. Two architecture sizes exist —
+`nano_10m` at ~10.9M parameters (10,877,184) and the shipped `nano_20m`
+at ~19.8M parameters (19,796,160), both measured programmatically via
 [`scripts/count_params.py`](scripts/count_params.py) — designed to learn
 language, answer questions, generate and continue text, be fine-tuned on
 new data, and run entirely locally — CPU or GPU, no external AI API
 required for the model itself.
 
-Aila Nano 2.0 adds an external intelligence layer around the model:
+Around the model sits an external intelligence layer:
 long-term user memory, a global knowledge base with validation and
 deduplication, optional web research through Serper (with caching,
 source ranking, and prompt-injection defense), an exact-arithmetic
@@ -122,7 +126,7 @@ python chat.py
 
 ```
 =====================================
-Aila Nano v2.0
+Aila Nano Beta
 Small Language Model
 Python 3.13
 CPU Mode

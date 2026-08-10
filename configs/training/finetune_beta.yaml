@@ -1,0 +1,26 @@
+# Aila Nano Beta (~19.8M params) instruction fine-tune.
+#
+# Same proven recipe that produced the working chat model (identical to
+# finetune_20m.yaml apart from the output directory) on the corrected
+# dataset: identity facts now state the real parameter count and the
+# public name ("Aila Nano Beta"), which the shipped weights still get
+# wrong because they were trained before those fixes.
+#
+# Writes to its own directory on purpose. A rerun must never be able to
+# overwrite a working checkpoint — the previous model is only replaced
+# after a head-to-head benchmark says the new one is better.
+epochs: 40
+batch_size: 4
+max_lr: 3.0e-5
+min_lr: 3.0e-6
+warmup_ratio: 0.05
+weight_decay: 0.01
+betas: [0.9, 0.95]
+grad_clip: 1.0
+val_fraction: 0.12
+log_interval: 20
+out_dir: checkpoints/finetune_beta
+device: cpu
+seed: 1337
+keep_last_n_checkpoints: 15
+checkpoint_every_n_epochs: 3

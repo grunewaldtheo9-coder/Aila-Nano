@@ -31,7 +31,7 @@ doubles CPU throughput.
 
 ## What to rent
 
-Aila Nano 2.0 is small; you do not need an expensive GPU. Any of these
+Aila Nano is small; you do not need an expensive GPU. Any of these
 fit the whole model, optimizer state, and a healthy batch in memory:
 
 | GPU | VRAM | Rough cost/hr | Good for |

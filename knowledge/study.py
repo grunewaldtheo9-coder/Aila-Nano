@@ -11,9 +11,10 @@ stuck on".
 
 Design constraints, all of which exist to keep this from being annoying:
 
-- **Bounded.** At most `max_topics` lookups per session, one network
-  request budget each. A study session cannot turn startup into a
-  minute-long wait.
+- **Bounded twice.** At most `max_topics` lookups, *and* a wall-clock
+  ceiling. The count alone is not enough: a source that is slow but not
+  failing never trips the offline breaker, so three topics could still
+  hold startup for over a minute.
 - **Once a day.** The last run is recorded in the knowledge store, so
   restarting the chat ten times studies once, and a laptop left closed
   for a week doesn't try to catch up seven times over.
@@ -38,6 +39,13 @@ logger = logging.getLogger(__name__)
 LAST_STUDY_KEY = "last_study_at"
 
 SECONDS_PER_DAY = 24 * 3600
+
+# Wall-clock ceiling for one study round. `max_topics` alone does not
+# bound the wait: a source that is slow but not *failing* never trips the
+# offline breaker, so three topics at up to four requests each, each
+# waiting out an 8-second timeout, could hold startup for well over a
+# minute with nothing on screen. Time is the honest budget.
+DEFAULT_TIME_BUDGET_SECONDS = 25.0
 
 # Fallback topics for a fresh install with no unanswered questions yet.
 # Deliberately broad, common subjects — the things a general assistant is
@@ -91,11 +99,19 @@ class StudyReport:
 class StudySession:
     """Runs one bounded round of self-directed research."""
 
-    def __init__(self, store, research, max_topics: int = 3, interval_seconds: float = SECONDS_PER_DAY):
+    def __init__(
+        self,
+        store,
+        research,
+        max_topics: int = 3,
+        interval_seconds: float = SECONDS_PER_DAY,
+        time_budget_seconds: float = DEFAULT_TIME_BUDGET_SECONDS,
+    ):
         self.store = store
         self.research = research
         self.max_topics = max_topics
         self.interval_seconds = interval_seconds
+        self.time_budget_seconds = time_budget_seconds
 
     # -- scheduling ---------------------------------------------------------
 
@@ -164,7 +180,11 @@ class StudySession:
             self.mark_ran()
             return report
 
+        started = time.time()
         for topic in topics:
+            if time.time() - started >= self.time_budget_seconds:
+                logger.info("study stopping early: time budget spent")
+                break
             try:
                 outcome = self.research.research(topic)
             except Exception:  # noqa: BLE001 — study must never break startup

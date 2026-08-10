@@ -1,4 +1,4 @@
-"""Security and adversarial-robustness tests for Aila Nano 2.0.
+"""Security and adversarial-robustness tests for Aila Nano.
 
 Four threat models are covered here, each corresponding to a specific
 design decision elsewhere in the codebase:
