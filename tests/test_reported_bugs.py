@@ -504,3 +504,48 @@ def test_beta_status_is_answered_deterministically(message):
 
 def test_beta_intent_does_not_swallow_unrelated_beta_questions():
     assert match_identity_question("What is beta testing?") is None
+
+
+# -- reported: install crashed with a torch pickling traceback ---------------
+
+
+def test_an_lfs_pointer_is_reported_as_a_download_problem(tmp_path):
+    """Reported verbatim: `_pickle.UnpicklingError: invalid load key, 'v'`.
+
+    GitHub's "Download ZIP" replaces every large file with a ~130-byte
+    text stub, so `best.pt` was a Git LFS pointer. The 'v' is the first
+    byte of "version https://git-lfs.github.com/...". The raw traceback
+    names neither the cause nor the fix.
+    """
+    from training.checkpoint import CheckpointNotDownloadedError, load_checkpoint
+
+    pointer = tmp_path / "best.pt"
+    pointer.write_bytes(
+        b"version https://git-lfs.github.com/spec/v1\n"
+        b"oid sha256:0123456789abcdef\nsize 237717559\n"
+    )
+
+    with pytest.raises(CheckpointNotDownloadedError) as excinfo:
+        load_checkpoint(str(pointer))
+
+    message = str(excinfo.value)
+    assert "Download raw file" in message
+    assert "240 MB" in message
+    assert "best.pt" in message
+
+
+def test_a_real_checkpoint_is_not_mistaken_for_a_pointer(tmp_path):
+    import torch
+
+    from training.checkpoint import load_checkpoint
+
+    path = tmp_path / "best.pt"
+    torch.save({"config": {}, "step": 1}, path)
+    assert load_checkpoint(str(path))["step"] == 1
+
+
+def test_a_missing_file_still_reports_as_missing(tmp_path):
+    from training.checkpoint import load_checkpoint
+
+    with pytest.raises(FileNotFoundError):
+        load_checkpoint(str(tmp_path / "nope.pt"))

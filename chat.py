@@ -26,6 +26,7 @@ import uuid
 from engine import AilaEngine, EngineSettings
 from engine.env import load_env
 from engine.support import SUPPORT_EMAIL, support_message
+from training.checkpoint import CheckpointNotDownloadedError
 from tools.identity import PRODUCT_NAME, RELEASE_STAGE
 
 # Public release name. Comes from tools/identity.py so the banner, the
@@ -185,6 +186,13 @@ def main() -> int:
 
     try:
         engine = AilaEngine(EngineSettings(), on_progress=on_progress)
+    except CheckpointNotDownloadedError as e:
+        # The single most common install failure. Its raw form is a
+        # torch pickling traceback that says nothing useful, so it gets
+        # its own branch with the actual fix.
+        print(f"\nCould not start.\n\n{e}")
+        print(f"\nStill stuck? Email {SUPPORT_EMAIL}")
+        return 1
     except FileNotFoundError as e:
         print(f"\nCould not start: {e}")
         print("See docs/TRAINING.md to train a tokenizer/model first.")

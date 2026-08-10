@@ -40,13 +40,21 @@ vectordb/index/knowledge.db         # /learn-ed documents
 knowledge/data/aila_knowledge.db    # global knowledge + web cache
 ```
 
-### `_pickle.UnpicklingError: invalid load key, 'v'`
+### "is a NNN-byte placeholder, not the real model file"
 
-The checkpoint file is not a real checkpoint. The usual cause: it was
-downloaded from GitHub's **"Download ZIP"** button, which substitutes a
-small text pointer for Git LFS files. Download `best.pt` from its own
-file page ("Download raw file"), or `git lfs pull`. A genuine checkpoint
-is ~130 MB (`nano_10m`) / ~240 MB (`nano_20m`); a pointer is a few hundred bytes.
+The checkpoint file is a Git LFS *pointer*, not the model. The usual
+cause: the project was downloaded with GitHub's **"Download ZIP"**
+button, which substitutes a small text stub for every large file.
+
+Download `best.pt` on its own — open `checkpoints/finetune_20m/best.pt`
+on GitHub and click the download arrow ("Download raw file") — or run
+`git lfs pull` in a clone. A genuine checkpoint is ~130 MB (`nano_10m`)
+/ ~240 MB (`nano_20m`); a pointer is a few hundred bytes.
+
+Older builds failed here with `_pickle.UnpicklingError: invalid load
+key, 'v'` — the 'v' being the first byte of "version
+https://git-lfs.github.com/...". `training/checkpoint.py` now detects
+the pointer and says all of the above instead.
 
 ### `RuntimeError: Error(s) in loading state_dict ... Missing key(s)`
 
