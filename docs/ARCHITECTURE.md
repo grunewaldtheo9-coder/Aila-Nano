@@ -346,6 +346,20 @@ vocabulary with the question wins. A perfect-scoring direct hit skips
 the search entirely, which halves the requests for the commonest shape
 ("What is X?") and keeps well clear of Wikimedia's rate limits.
 
+**First-run key setup.** With no `SERPER_API_KEY`, `chat.py` offers once
+to take one, checks it with a single live search, and writes it to
+`.env` via `engine/env.py::save_env_var`. Four rules, each tested:
+the prompt is skipped entirely when stdin is not a terminal (a piped run
+would otherwise swallow the user's first message as an API key); a key
+that fails its check is *not* saved, because a broken key makes every
+lookup fail instead of falling back cleanly to Wikipedia; the writer
+refuses any path that isn't a `.env` file, since being gitignored is the
+only thing keeping the key out of the repository; and the key is never
+echoed, logged, or included in an error message. HTTP 429 counts as
+*working* — the key is real, it has just run out of searches.
+`AilaEngine.set_serper_api_key` attaches the source immediately, so no
+restart is needed, and `/serper` re-runs the whole flow on demand.
+
 **Progress reporting.** `ResearchPipeline(on_status=...)` is called with
 a short line ("Searching Wikipedia...", "Searching the web...")
 immediately before a lookup that will actually leave the machine.

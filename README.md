@@ -168,7 +168,9 @@ spot, `/knows` to see how much she has learned, and `/support` /
 `/feedback` to report a problem to Aila Company Solutions).
 
 Aila looks things up on **Wikipedia** — free, no API key, no account —
-and on Google via serper.dev if you set `SERPER_API_KEY`. Everything she
+and falls through to Google via serper.dev for anything Wikipedia has no
+article about. The first run offers to take a Serper key and checks it
+before saving; `/serper` sets or replaces it later. Everything she
 researches is stored, so it answers instantly and works with no
 internet afterwards. Once a day at startup she also goes back and
 studies questions she previously failed to answer. Plain-language commands work too:

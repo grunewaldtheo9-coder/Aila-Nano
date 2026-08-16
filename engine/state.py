@@ -239,6 +239,63 @@ class AilaEngine:
     def is_trained(self) -> bool:
         return self.model_loaded_from is not None
 
+    def set_serper_api_key(self, api_key: str) -> bool:
+        """Attach (or replace) the Serper source at runtime.
+
+        Exists so the first-run setup can start using a pasted key
+        immediately instead of telling the user to restart. Returns False
+        if the key is empty or research is disabled entirely.
+
+        Never logs the key.
+        """
+        from webresearch.serper import SerperClient
+
+        api_key = (api_key or "").strip()
+        research = getattr(self.router, "research", None)
+        if not api_key or research is None:
+            return False
+        research.client = SerperClient(
+            api_key,
+            timeout_seconds=self.settings.web_timeout_seconds,
+            max_results=self.settings.web_max_results,
+        )
+        self.settings.serper_api_key = api_key
+        logger.info("Serper source attached at runtime")
+        return True
+
+    def check_serper_api_key(self, api_key: str) -> tuple[bool, str]:
+        """One live search to see whether a key actually works.
+
+        Worth the round trip: the previous key in this project was
+        cancelled without anyone noticing, and every factual question
+        quietly degraded for days. Checking at the moment it is pasted
+        turns that into an immediate, fixable message.
+
+        Returns (ok, human-readable reason). Never includes the key.
+        """
+        from webresearch.serper import (
+            SerperAuthError,
+            SerperClient,
+            SerperError,
+            SerperRateLimitError,
+        )
+
+        api_key = (api_key or "").strip()
+        if not api_key:
+            return False, "No key entered."
+        try:
+            SerperClient(api_key, timeout_seconds=self.settings.web_timeout_seconds).search(
+                "test"
+            )
+        except SerperAuthError:
+            return False, "That key was rejected. Check you copied all of it."
+        except SerperRateLimitError:
+            # The key is valid — it is just out of searches right now.
+            return True, "The key works, but it has hit its search limit for now."
+        except SerperError as e:
+            return False, f"Couldn't reach the search service ({type(e).__name__})."
+        return True, "The key works."
+
     def set_status_callback(self, callback) -> None:
         """Where to send short progress lines like "Searching Wikipedia...".
 

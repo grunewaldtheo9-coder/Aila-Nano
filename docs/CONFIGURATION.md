@@ -71,7 +71,7 @@ interface, just needs these set before it starts).
 | `AILA_DEFAULT_AGENT` | `general` | Agent `chat.py` starts with (`/agent <name>` switches at runtime) |
 | `AILA_KNOWLEDGE_STORE_DB` | `knowledge/data/aila_knowledge.db` | Global knowledge + web-research cache (SQLite) |
 | `AILA_STORAGE_BACKEND` | `sqlite` | `sqlite` (fully supported) or `firestore` (adapter only — needs `firebase-admin` + `GOOGLE_APPLICATION_CREDENTIALS`; falls back to SQLite with a warning) |
-| `SERPER_API_KEY` | *(empty)* | Serper web-search key. **Secret** — set it only in the environment or `.env` (gitignored), never in code |
+| `SERPER_API_KEY` | *(empty)* | Serper web-search key. **Secret** — set it only in the environment or `.env` (gitignored), never in code. `chat.py` offers to set it up on first run, and `/serper` sets it any time |
 | `AILA_WEB_SEARCH_ENABLED` | `true` | Master switch for Serper (no key = Wikipedia only) |
 | `AILA_WEB_MAX_RESULTS` | `5` | Results requested per Serper search |
 | `AILA_WEB_TIMEOUT_SECONDS` | `8` | Request timeout, both sources |

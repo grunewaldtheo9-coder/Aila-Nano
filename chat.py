@@ -18,13 +18,14 @@ file.
 
 from __future__ import annotations
 
+import getpass
 import platform
 import sqlite3
 import sys
 import uuid
 
 from engine import AilaEngine, EngineSettings
-from engine.env import load_env
+from engine.env import load_env, save_env_var
 from engine.support import SUPPORT_EMAIL, support_message
 from training.checkpoint import CheckpointNotDownloadedError
 from tools.identity import PRODUCT_NAME, RELEASE_STAGE
@@ -47,6 +48,7 @@ Commands:
   /learn <path>      index a local .txt/.md file into the knowledge base
   /study <topic>     look a topic up now and remember it forever
   /knows             how much Aila has learned so far
+  /serper            add or replace your Serper key (search the whole web)
   /support           how to report a problem to Aila Company Solutions
   /feedback <text>   same, with your message included
   exit, quit         leave
@@ -56,6 +58,75 @@ You can also just type things naturally, e.g.:
   "Forget that my name is Theo"
   "What do you remember about me?"
 """
+
+
+SERPER_PROMPT_SHOWN_KEY = "serper_prompt_shown"
+
+
+def offer_serper_setup(engine, force: bool = False) -> None:
+    """Ask once, on first run, whether the user wants to add a Serper key.
+
+    Wikipedia answers most questions and needs no key, so this is an
+    offer rather than a requirement — Enter skips it, and it is never
+    asked twice (the answer is recorded in the knowledge store).
+
+    Deliberately skipped when stdin is not a terminal: a scripted or
+    piped run would otherwise swallow the first line of real input as if
+    it were an API key.
+    """
+    if engine.settings.serper_api_key and not force:
+        return  # already configured
+    if not sys.stdin.isatty():
+        return  # piped/scripted input — never consume a line
+    store = getattr(engine, "knowledge_store", None)
+    if not force and store is not None and store.get_meta(SERPER_PROMPT_SHOWN_KEY):
+        return  # asked before; don't nag on every start
+
+    print()
+    print("-" * 55)
+    print("For better researching, you can give me a Serper API key and")
+    print("I'll be able to search the whole internet, not just Wikipedia.")
+    print("It's free at https://serper.dev — or just press Enter to skip.")
+    print("(You can add it later by typing /serper)")
+    print("-" * 55)
+    try:
+        # getpass keeps the key off the screen. Some terminals don't
+        # support it; a visible prompt is better than crashing.
+        try:
+            api_key = getpass.getpass("Paste your Serper API key (hidden), or Enter to skip: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            raise
+        except Exception:
+            api_key = input("Paste your Serper API key, or Enter to skip: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        api_key = ""
+
+    if store is not None:
+        store.set_meta(SERPER_PROMPT_SHOWN_KEY, "1")
+
+    if not api_key:
+        print("No problem — I'll use Wikipedia. Type /serper any time to add one.\n")
+        return
+
+    print("Checking that key...")
+    ok, reason = engine.check_serper_api_key(api_key)
+    if not ok:
+        # Not saved: a key that doesn't work is worse than none, because
+        # every lookup would then fail instead of falling back cleanly.
+        print(f"{reason} Nothing was saved — I'll keep using Wikipedia.\n")
+        return
+
+    try:
+        save_env_var("SERPER_API_KEY", api_key)
+    except (OSError, ValueError) as e:
+        print(f"{reason} But I couldn't save it to .env ({e}).")
+        print("It will work for this session only.\n")
+        engine.set_serper_api_key(api_key)
+        return
+
+    engine.set_serper_api_key(api_key)
+    print(f"{reason} Saved to your .env file — I'll use it from now on.\n")
 
 
 def print_banner(device: str) -> None:
@@ -162,6 +233,9 @@ def handle_command(engine: AilaEngine, command: str, state: dict) -> bool:
             else "Live sources: none (I can only use what I already know)."
         )
 
+    elif cmd == "/serper":
+        offer_serper_setup(engine, force=True)
+
     elif cmd in ("/support", "/feedback"):
         print(support_message(engine, VERSION, note=arg))
 
@@ -222,6 +296,10 @@ def main() -> int:
             "\n(Note: no trained checkpoint found — responses will be gibberish "
             "until you train Aila Nano. See docs/TRAINING.md.)"
         )
+
+    # First run: offer to add a Serper key. Before the sources line, so
+    # that line reflects the answer.
+    offer_serper_setup(engine)
 
     if engine.web_search_active:
         print(f"\nLooking things up with: {', '.join(engine.research_sources)}")

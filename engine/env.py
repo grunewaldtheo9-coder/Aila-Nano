@@ -43,3 +43,54 @@ def load_env(path: str | Path = ".env") -> int:
         os.environ[key] = value
         loaded += 1
     return loaded
+
+
+def save_env_var(key: str, value: str, path: str | Path = ".env") -> None:
+    """Write `KEY=value` into the .env file, replacing any existing line
+    for that key and leaving every other line untouched.
+
+    Used by the first-run setup so a pasted API key survives a restart.
+    Two things this must get right, because it is the only place in the
+    project that writes a secret to disk:
+
+    - The file is created with owner-only permissions (0600) where the
+      platform supports it, and existing permissions are tightened the
+      same way. Windows ignores the mode; there is no portable
+      equivalent, so this is best-effort rather than a guarantee.
+    - `.env` is gitignored (see .gitignore), which is what keeps the key
+      out of the repository. This function refuses to write anywhere
+      whose name isn't a .env file, so a caller cannot be tricked into
+      dropping a secret into a tracked file.
+    """
+    if not key or not key.replace("_", "").isalnum():
+        raise ValueError(f"Refusing to write malformed env key {key!r}")
+    if "\n" in value or "\r" in value:
+        raise ValueError("Refusing to write a multi-line env value")
+
+    env_path = Path(path)
+    if not env_path.name.startswith(".env"):
+        raise ValueError(f"Refusing to write secrets to {env_path.name!r}; expected a .env file")
+
+    lines: list[str] = []
+    if env_path.exists():
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+
+    replaced = False
+    for i, raw in enumerate(lines):
+        stripped = raw.strip()
+        if stripped.startswith("#") or "=" not in stripped:
+            continue
+        if stripped.partition("=")[0].strip() == key:
+            lines[i] = f"{key}={value}"
+            replaced = True
+            break
+    if not replaced:
+        lines.append(f"{key}={value}")
+
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        env_path.chmod(0o600)
+    except OSError:  # Windows / unusual filesystems — nothing portable to do
+        logger.debug("could not tighten permissions on %s", env_path)
+
+    os.environ[key] = value
