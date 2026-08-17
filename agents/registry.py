@@ -36,6 +36,7 @@ def get_agent(
     device: str = "cpu",
     router=None,
     allow_freeform: bool = True,
+    translator=None,
 ) -> Agent:
     if agent_name not in AGENT_REGISTRY:
         raise ValueError(
@@ -50,4 +51,5 @@ def get_agent(
         device=device,
         router=router,
         allow_freeform=allow_freeform,
+        translator=translator,
     )

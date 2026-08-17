@@ -37,6 +37,7 @@ def _no_network_by_default(monkeypatch):
     monkeypatch.setenv("AILA_WIKIPEDIA_ENABLED", "false")
     monkeypatch.setenv("AILA_DAILY_STUDY", "false")
     monkeypatch.setenv("SERPER_API_KEY", "")
+    monkeypatch.setenv("AILA_TRANSLATE", "false")
 
 
 @pytest.fixture(scope="session")

@@ -81,6 +81,7 @@ interface, just needs these set before it starts).
 | `AILA_DAILY_STUDY` | `true` | Once-a-day self-directed study at startup |
 | `AILA_STUDY_TOPICS_PER_DAY` | `3` | Hard cap on lookups per study round — the entire cost of the feature |
 | `AILA_ALLOW_FREEFORM` | `false` | Let the model answer messages the deterministic layer can't handle. Off because it is measurably noise at this scale — see [BENCHMARKS.md](BENCHMARKS.md) |
+| `AILA_TRANSLATE` | `true` | Portuguese↔English fallback (deep-translator). Additive — fires only when the native Portuguese path missed; a no-op if the library isn't installed or the network is down |
 | `AILA_RETRIEVAL_TOP_K` | `3` | Max memories/snippets injected per turn |
 | `AILA_RELEVANCE_THRESHOLD` | `0.2` | Lexical-overlap gate below which nothing is injected |
 

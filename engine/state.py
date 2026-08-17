@@ -80,6 +80,7 @@ class AilaEngine:
         # `self._emit_status`, which reads this on every call.
         self._status_callback = None
         self.knowledge_store, self.knowledge_base, self.router = self._build_knowledge_stack()
+        self.translator = self._build_translator()
         self._notify("OK")
 
         self._notify("Loading agents...")
@@ -171,6 +172,21 @@ class AilaEngine:
         router = ToolRouter(knowledge=base, research=research, memory=self.memory)
         return store, base, router
 
+    def _build_translator(self):
+        """A Translator, or None when translation is switched off. Never
+        raises: an unusable deep-translator just yields a translator whose
+        `available` is False, which the agents treat as "no translation"."""
+        if not self.settings.translation_enabled:
+            return None
+        from translation import Translator
+
+        translator = Translator(enabled=True)
+        if translator.available:
+            logger.info("translation enabled (deep-translator)")
+        else:
+            logger.info("translation requested but deep-translator is unavailable")
+        return translator
+
     # -- loading --------------------------------------------------------
 
     def _load_tokenizer(self) -> AilaTokenizer:
@@ -216,6 +232,7 @@ class AilaEngine:
                 device=self.device,
                 router=self.router,
                 allow_freeform=self.settings.allow_freeform,
+                translator=self.translator,
             )
         return self._agent_cache[agent_name]
 

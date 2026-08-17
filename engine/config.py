@@ -136,6 +136,13 @@ class EngineSettings:
     allow_freeform: bool = field(
         default_factory=lambda: _env_bool("AILA_ALLOW_FREEFORM", False)
     )
+    # en<->pt translation (deep-translator). On by default: it is purely
+    # additive — it only fires when the native Portuguese path missed, and
+    # degrades to a no-op if the library isn't installed or the network is
+    # down. See translation/translator.py and agents/base.py.
+    translation_enabled: bool = field(
+        default_factory=lambda: _env_bool("AILA_TRANSLATE", True)
+    )
     retrieval_top_k: int = field(default_factory=lambda: _env_int("AILA_RETRIEVAL_TOP_K", 3))
     relevance_threshold: float = field(
         default_factory=lambda: _env_float("AILA_RELEVANCE_THRESHOLD", 0.2)

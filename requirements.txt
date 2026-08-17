@@ -18,3 +18,7 @@ numpy>=1.26
 pyyaml>=6.0.2
 tqdm>=4.67
 tensorboard>=2.18
+
+# Translation (Portuguese <-> English fallback; optional — Aila runs
+# without it, just without the translate-on-miss path)
+deep-translator>=1.11

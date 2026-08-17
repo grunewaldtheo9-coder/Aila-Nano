@@ -383,6 +383,51 @@ pipeline never raises, and no unsanitized web text ever leaves it. Web
 content is DATA: it is never interpreted as instructions, and
 recognizable injection strings are dropped before storage.
 
+## Translation fallback (`translation/`)
+
+A defensive wrapper around **deep-translator** (Google Translate) that
+lets a Portuguese question reach the parts of Aila that only speak
+English — chiefly the far larger *English* Wikipedia, and memories the
+user stored in English — and brings the answer back in Portuguese.
+
+It is deliberately a **fallback, not a wrapper around everything**. Aila
+already handles Portuguese greetings, identity, memory and maths
+natively, and already searches Portuguese Wikipedia; all of those are
+better in their native form than a round-trip through machine
+translation. So `agents/base.py::_resolve_route` translates *only* when
+the native pass produced no confident answer:
+
+1. Route the message natively (in Portuguese). If that is a confident
+   answer, return it — untouched.
+2. Otherwise, if the message is Portuguese: translate it to English,
+   route the English version, and if *that* is confident, translate the
+   answer back to Portuguese.
+3. Otherwise keep whatever the native pass produced (a Portuguese
+   "I don't have that", or nothing).
+
+A *soft miss* — a memory miss, or a search that found nothing — counts
+as "no confident answer" even though it is a `direct_reply`, so
+"Qual é o meu nome?" still finds a memory stored as "my name is Theo". A
+*transient web error* (rate limit) does not trigger the retry: it hits
+the same backend in either language.
+
+Every method degrades to returning the original text: deep-translator not
+installed (`available` is False), the network down, an API error, or —
+caught specifically — Google handing back an HTML/text error page as if
+it were a translation. A translation failure never becomes a failed
+turn; the worst case is the user sees the original-language text, which
+is exactly what they would have seen without the module at all.
+
+**Limitation, measured:** this cannot rescue a *confidently wrong* native
+answer. If Portuguese Wikipedia lacks an article and its search returns a
+plausible-but-wrong one (e.g. "Creality 3D" → the Bambu Lab article,
+both 3D-printer makers), the native pass serves that as a confident
+answer and translation never fires. There is no lexical-overlap
+threshold that separates these from genuine answers — see
+[BENCHMARKS.md](BENCHMARKS.md). A Serper key (Google results, far better
+coverage than Portuguese Wikipedia) is the reliable fix, which is why the
+first-run setup offers one.
+
 ## Self-directed study (`knowledge/study.py`)
 
 The knowledge base already grows passively: every researched answer is

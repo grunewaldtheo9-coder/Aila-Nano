@@ -20,6 +20,7 @@ from model.generate import DEFAULT_NO_REPEAT_NGRAM_SIZE, generate, generate_stre
 from model.transformer import AilaNanoGPT
 from tokenizer.tokenizer import AilaTokenizer
 from tools.smalltalk import match_smalltalk
+from webresearch.pipeline import detect_language
 from vectordb.semantic_index import SemanticIndex
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,7 @@ class Agent:
         device: str = "cpu",
         router=None,  # tools.router.ToolRouter | None (kept untyped to avoid an import cycle)
         allow_freeform: bool = True,
+        translator=None,  # translation.Translator | None
     ):
         self.model = model.to(device)
         self.model.eval()
@@ -110,6 +112,10 @@ class Agent:
         self.knowledge = knowledge
         self.device = device
         self.router = router
+        # Optional en<->pt translation, used only as a *fallback* — see
+        # `_resolve_route`. None (or an unavailable translator) simply
+        # means Portuguese questions are handled natively only.
+        self.translator = translator
         # When False, a message the router could not handle gets an honest
         # "here is what I can actually do" reply instead of freeform
         # generation.
@@ -303,6 +309,82 @@ class Agent:
 
         return None
 
+    # -- routing (+ translation fallback) ----------------------------------
+
+    # Router outcomes that ARE a `direct_reply` but really mean "I don't
+    # have this" — a memory miss, or a search that found nothing. They are
+    # answered natively (in Portuguese), but they must not block the
+    # English translation retry: "Qual é o meu nome?" produces a
+    # Portuguese memory-miss, yet the stored fact "my name is Theo" is
+    # findable once the question is translated. A confident answer in
+    # English is preferred over a soft miss in Portuguese.
+    _SOFT_MISS_TOOLS = frozenset({"memory_miss", "web_no_answer"})
+
+    @classmethod
+    def _is_confident(cls, route) -> bool:
+        """True when a route produced a real answer, not a soft miss and
+        not a transient web error (translating won't fix a rate limit —
+        it hits the same backend)."""
+        tool = route.tool_used or ""
+        return (
+            route.direct_reply is not None
+            and tool not in cls._SOFT_MISS_TOOLS
+            and not tool.startswith("web_error")
+        )
+
+    def _resolve_route(self, conversation_id: str, user_message: str):
+        """Route one message, with an additive Portuguese->English->
+        Portuguese fallback. Returns (direct_reply, web_snippets,
+        tool_used); direct_reply is None when nothing matched and the
+        caller should generate (or give the no-freeform reply).
+
+        The fallback fires only when the native pass produced no confident
+        answer, so it can never degrade the things Aila already does well
+        in Portuguese (greetings, identity, maths, a found memory,
+        Portuguese Wikipedia). It exists to let a Portuguese question that
+        Portuguese sources couldn't answer reach the far larger English
+        Wikipedia — and to find an English-stored memory — then come back
+        translated.
+        """
+        if self.router is None:
+            return None, None, None
+
+        prev = self._previous_user_message(conversation_id)
+        route = self.router.route(user_message, previous_user_message=prev)
+        if self._is_confident(route):
+            return route.direct_reply, None, route.tool_used
+
+        # A transient web error (rate limit, unreachable) hits the same
+        # backend whatever the language, so translating and retrying just
+        # wastes a lookup — keep the native error message.
+        native_is_web_error = (route.tool_used or "").startswith("web_error")
+
+        translator = self.translator
+        if (
+            translator is not None
+            and getattr(translator, "available", False)
+            and not native_is_web_error
+            and detect_language(user_message) == "pt"
+        ):
+            english = translator.to_english(user_message)
+            # Only proceed if translation actually produced something new;
+            # if it passed through unchanged (offline, error), the native
+            # route already covered it.
+            if english and english.strip().lower() != user_message.strip().lower():
+                prev_en = translator.to_english(prev) if prev else None
+                route_en = self.router.route(english, previous_user_message=prev_en)
+                if self._is_confident(route_en):
+                    translated = translator.to_portuguese(route_en.direct_reply)
+                    logger.info("turn path=translated:%s", route_en.tool_used)
+                    return translated, None, f"translated:{route_en.tool_used}"
+
+        # No confident answer anywhere. Fall back to whatever the native
+        # route produced — a Portuguese soft-miss reply, injectable
+        # snippets, or nothing.
+        if route.direct_reply is not None:
+            return route.direct_reply, None, route.tool_used
+        return None, route.context_snippets or None, route.tool_used
+
     # -- inference -----------------------------------------------------
 
     @torch.no_grad()
@@ -325,21 +407,14 @@ class Agent:
         # deterministic, runs before generation, never raises (see
         # tools/router.py). A direct reply skips the model entirely;
         # context snippets ride along into the system prompt as [WEB] data.
-        web_snippets: list[str] | None = None
-        if self.router is not None:
-            route = self.router.route(
-                user_message,
-                previous_user_message=self._previous_user_message(conversation_id),
-            )
-            if route.direct_reply is not None:
-                if remember_turn:
-                    self._remember_turn(conversation_id, user_message, route.direct_reply)
-                logger.info(
-                    "turn path=tool:%s latency=%.3fs", route.tool_used, time.time() - started
-                )
-                return route.direct_reply
-            if route.context_snippets:
-                web_snippets = route.context_snippets
+        direct_reply, web_snippets, tool_used = self._resolve_route(
+            conversation_id, user_message
+        )
+        if direct_reply is not None:
+            if remember_turn:
+                self._remember_turn(conversation_id, user_message, direct_reply)
+            logger.info("turn path=tool:%s latency=%.3fs", tool_used, time.time() - started)
+            return direct_reply
 
         if not self.allow_freeform:
             reply = self._no_freeform_reply(user_message)
@@ -401,19 +476,14 @@ class Agent:
                 self._remember_turn(conversation_id, user_message, command_reply)
             return
 
-        web_snippets: list[str] | None = None
-        if self.router is not None:
-            route = self.router.route(
-                user_message,
-                previous_user_message=self._previous_user_message(conversation_id),
-            )
-            if route.direct_reply is not None:
-                yield route.direct_reply
-                if remember_turn:
-                    self._remember_turn(conversation_id, user_message, route.direct_reply)
-                return
-            if route.context_snippets:
-                web_snippets = route.context_snippets
+        direct_reply, web_snippets, _tool_used = self._resolve_route(
+            conversation_id, user_message
+        )
+        if direct_reply is not None:
+            yield direct_reply
+            if remember_turn:
+                self._remember_turn(conversation_id, user_message, direct_reply)
+            return
 
         if not self.allow_freeform:
             reply = self._no_freeform_reply(user_message)
