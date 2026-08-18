@@ -104,6 +104,7 @@ class Agent:
         router=None,  # tools.router.ToolRouter | None (kept untyped to avoid an import cycle)
         allow_freeform: bool = True,
         translator=None,  # translation.Translator | None
+        emit_status=None,  # Callable[[str], None] | None
     ):
         self.model = model.to(device)
         self.model.eval()
@@ -116,6 +117,10 @@ class Agent:
         # `_resolve_route`. None (or an unavailable translator) simply
         # means Portuguese questions are handled natively only.
         self.translator = translator
+        # Short progress lines ("Translating...") for a caller to show, so
+        # the multi-second translate+research fallback isn't a silent
+        # pause. Defaults to a no-op.
+        self._emit_status = emit_status or (lambda msg: None)
         # When False, a message the router could not handle gets an honest
         # "here is what I can actually do" reply instead of freeform
         # generation.
@@ -354,18 +359,25 @@ class Agent:
         if self._is_confident(route):
             return route.direct_reply, None, route.tool_used
 
-        # A transient web error (rate limit, unreachable) hits the same
-        # backend whatever the language, so translating and retrying just
-        # wastes a lookup — keep the native error message.
-        native_is_web_error = (route.tool_used or "").startswith("web_error")
+        # The English retry is only worth its network cost on a *soft
+        # miss* — the native pass reached memory or a search and came up
+        # empty (memory_miss / web_no_answer). Anything else (a message
+        # that matched no tool at all, a non-question, a transient web
+        # error) cannot be helped by translating: the English pipeline
+        # applies the same routing rules and hits the same backends. This
+        # gate is what stops "Faça um poema" from paying for a pointless
+        # translation call before falling through to the no-freeform
+        # reply.
+        soft_miss = (route.tool_used or "") in self._SOFT_MISS_TOOLS
 
         translator = self.translator
         if (
-            translator is not None
+            soft_miss
+            and translator is not None
             and getattr(translator, "available", False)
-            and not native_is_web_error
             and detect_language(user_message) == "pt"
         ):
+            self._emit_status("Translating and searching in English...")
             english = translator.to_english(user_message)
             # Only proceed if translation actually produced something new;
             # if it passed through unchanged (offline, error), the native

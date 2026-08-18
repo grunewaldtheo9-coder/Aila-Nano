@@ -161,8 +161,10 @@ def test_a_confident_native_answer_is_never_translated(tiny_model, tokenizer):
 def test_a_portuguese_miss_is_retried_in_english_and_translated_back(tiny_model, tokenizer):
     router = _FakeRouter(
         {
-            # Native Portuguese: nothing.
-            "Quem fundou a Creality?": RouteResult(),
+            # Native Portuguese: searched, found nothing (a soft miss).
+            "Quem fundou a Creality?": RouteResult(
+                direct_reply="Pesquisei, mas não encontrei.", tool_used="web_no_answer"
+            ),
             # Translated English: a confident web answer.
             "Who founded Creality?": RouteResult(
                 direct_reply="Creality is a Chinese 3D printer company.", tool_used="web_research"
@@ -261,14 +263,43 @@ def test_no_translator_means_native_only(tiny_model, tokenizer):
     assert reply == "Não encontrei."
 
 
+def test_a_non_soft_miss_does_not_spend_a_translation_call(tiny_model, tokenizer):
+    """"Faça um poema" matches no tool (tool_used is None) — translating
+    it cannot produce an answer, since the English pipeline applies the
+    same routing rules. The retry must be skipped so it does not pay for a
+    pointless network call before the no-freeform reply."""
+
+    class _CountingTranslator(_FakeTranslator):
+        def __init__(self):
+            super().__init__()
+            self.en_calls = 0
+
+        def to_english(self, text):
+            self.en_calls += 1
+            return super().to_english(text)
+
+    router = _FakeRouter({"Faça um poema": RouteResult()})  # no tool matched
+    translator = _CountingTranslator()
+    agent = _agent(tiny_model, tokenizer, router, translator)
+
+    reply, _, _ = agent._resolve_route("c1", "Faça um poema")
+    assert reply is None
+    assert translator.en_calls == 0
+    assert router.seen == ["Faça um poema"]  # routed once, no English retry
+
+
 def test_a_passthrough_translation_does_not_trigger_a_pointless_retry(tiny_model, tokenizer):
     """If translation returns the text unchanged (offline / error), the
     native route already covered it — there is nothing new to route."""
-    router = _FakeRouter({"Quem fundou a Creality?": RouteResult()})
-    # to_english returns the same string (nothing stubbed).
+    router = _FakeRouter(
+        {"Quem fundou a Creality?": RouteResult(direct_reply="Não encontrei.", tool_used="web_no_answer")}
+    )
+    # to_english returns the same string (nothing stubbed) -> offline/error.
     translator = _FakeTranslator()
     agent = _agent(tiny_model, tokenizer, router, translator)
 
     reply, _, _ = agent._resolve_route("c1", "Quem fundou a Creality?")
-    assert reply is None
-    assert router.seen == ["Quem fundou a Creality?"]  # not routed a second time
+    # Falls back to the native soft-miss reply, and never routes a second
+    # time (the passthrough produced nothing new to route).
+    assert reply == "Não encontrei."
+    assert router.seen == ["Quem fundou a Creality?"]

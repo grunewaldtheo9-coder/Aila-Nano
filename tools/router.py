@@ -95,6 +95,32 @@ _SELF_REFERENCE = re.compile(
 # a fabrication.
 _FIRST_PERSON_POSSESSIVE = re.compile(r"\b(my|mine|meu|minha|meus|minhas)\b", re.IGNORECASE)
 
+# A question about the user's *own* attributes — preferences, identity,
+# personal facts ("Do que eu gosto?", "Who am I?"). Only stored memory can
+# answer these, so when memory has nothing, admitting it is the honest reply
+# (and the translation fallback can then retry the same question across
+# languages, finding a memory stored in the other language). Kept narrow on
+# purpose: a bare "I"/"eu" also appears in general how-to questions ("How do
+# I make bread?") that genuinely want the web, so the pronoun is required to
+# sit with a stative / preference / identity verb, or in a fixed self-phrase.
+_FIRST_PERSON_SELF = re.compile(
+    r"\b(?:"
+    # English
+    r"i\s+(?:like|likes|love|hate|prefer|am|are|have|has|had|know|want|need|"
+    r"enjoy|support|live|lived|study|studied|work|worked|was)\b"
+    r"|i'?m\b"
+    r"|who\s+am\s+i\b"
+    r"|about\s+me\b"
+    # Portuguese
+    r"|eu\s+(?:me\s+)?(?:gosto|amo|odeio|prefiro|sou|tenho|tinha|sei|quero|"
+    r"preciso|adoro|curto|torço|moro|morava|nasci|chamo|estudo|trabalho)\b"
+    r"|quem\s+sou\s+eu\b"
+    r"|sobre\s+mim\b"
+    r"|comigo\b"
+    r")",
+    re.IGNORECASE,
+)
+
 # Words a bare follow-up may consist of and nothing else. English
 # interrogatives are already stopwords (so they tokenize away to
 # nothing); the Portuguese ones are not, and listing them here is
@@ -261,7 +287,7 @@ class ToolRouter:
             # remembered: memory is the only possible source, so admit it
             # rather than generate. Prevents both garbled output and any
             # chance of the model inventing a personal detail.
-            if _FIRST_PERSON_POSSESSIVE.search(message):
+            if _FIRST_PERSON_POSSESSIVE.search(message) or _FIRST_PERSON_SELF.search(message):
                 reply = _NO_MEMORY_REPLY_PT if language == "pt" else _NO_MEMORY_REPLY_EN
                 return RouteResult(direct_reply=reply, tool_used="memory_miss")
 

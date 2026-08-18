@@ -542,6 +542,41 @@ def test_router_admits_when_a_personal_question_has_no_memory(tiny_model, tokeni
         memory.close()
 
 
+def test_a_personal_question_without_a_possessive_is_still_a_memory_miss(
+    tiny_model, tokenizer, tmp_path
+):
+    """"Do que eu gosto?" / "What do I like?" ask about the user with a
+    first-person *subject* pronoun, no possessive in sight. They must still
+    be recognized as personal questions and admit a memory miss — not fall
+    through to web research (where, in a real session, pt.Wikipedia
+    confidently returned an unrelated article). A memory miss is also what
+    lets the translation fallback retry across languages and find a memory
+    stored in the other one. General how-to questions using the same "I"/"eu"
+    ("How do I make bread?") must NOT be captured — they still reach the web."""
+    from memory.manager import MemoryManager
+    from vectordb.embedder import AilaEmbedder
+
+    embedder = AilaEmbedder(tiny_model, tokenizer)
+    memory = MemoryManager(
+        embedder, db_path=str(tmp_path / "m.db"), faiss_path=str(tmp_path / "m.faiss")
+    )
+    try:
+        router = ToolRouter(memory=memory)
+
+        assert router.route("What do I like?").tool_used == "memory_miss"
+        assert router.route("Do que eu gosto?").tool_used == "memory_miss"
+        assert router.route("Who am I?").tool_used == "memory_miss"
+        assert router.route("Quem sou eu?").tool_used == "memory_miss"
+
+        # A general how-to question that merely contains "I"/"eu" is NOT a
+        # personal-memory question — it must not be answered from (empty)
+        # memory. It falls through to the model/web instead.
+        assert router.route("How do I make bread?").tool_used != "memory_miss"
+        assert router.route("Where do I find a bakery?").tool_used != "memory_miss"
+    finally:
+        memory.close()
+
+
 def test_router_does_not_answer_from_a_weakly_matching_memory(tiny_model, tokenizer, tmp_path):
     from memory.manager import MemoryManager
     from vectordb.embedder import AilaEmbedder

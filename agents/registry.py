@@ -37,6 +37,7 @@ def get_agent(
     router=None,
     allow_freeform: bool = True,
     translator=None,
+    emit_status=None,
 ) -> Agent:
     if agent_name not in AGENT_REGISTRY:
         raise ValueError(
@@ -52,4 +53,5 @@ def get_agent(
         router=router,
         allow_freeform=allow_freeform,
         translator=translator,
+        emit_status=emit_status,
     )

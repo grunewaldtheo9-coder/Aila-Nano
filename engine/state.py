@@ -233,6 +233,7 @@ class AilaEngine:
                 router=self.router,
                 allow_freeform=self.settings.allow_freeform,
                 translator=self.translator,
+                emit_status=self._emit_status,
             )
         return self._agent_cache[agent_name]
 
