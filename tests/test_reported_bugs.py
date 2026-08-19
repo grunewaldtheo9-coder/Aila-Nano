@@ -361,6 +361,38 @@ def test_questions_about_aila_are_answered_from_facts_not_generated(store, kb):
 
 
 @pytest.mark.parametrize(
+    "message,intent",
+    [
+        # "Quem te criou?" puts the object pronoun *before* the verb, so the
+        # "quem criou você" pattern (object after) missed it, while the
+        # English "Who created you?" worked — a gap for a Portuguese user.
+        ("Quem te criou?", "creator"),
+        ("Quem te fez?", "creator"),
+        ("Quem criou você?", "creator"),
+        # "em beta" phrasing was uncovered, though "Are you in beta?" worked.
+        ("Você está em beta?", "beta"),
+        ("Você é beta?", "beta"),
+    ],
+)
+def test_portuguese_identity_phrasings_match_like_their_english_twins(message, intent):
+    match = match_identity_question(message, language="pt")
+    assert match is not None and match[0] == intent
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Quem te ligou ontem?",   # "te" + non-make verb: not about creation
+        "Quem te ama?",           # ditto
+        "Você está em casa?",     # "está em" but the object is "casa", not beta
+        "O que é radiação beta?", # "beta" as a physics term, not Aila's status
+    ],
+)
+def test_portuguese_identity_fixes_do_not_overreach(message):
+    assert match_identity_question(message, language="pt") is None
+
+
+@pytest.mark.parametrize(
     "message",
     [
         "Who created Samsung?",              # a different company

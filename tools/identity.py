@@ -160,6 +160,10 @@ _INTENT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
             rf"|\b(?:you\s+were|were\s+you)\s+(?:{_MAKE_VERBS_EN})\s+by\s+who(?:m)?\b"
             rf"|\bwho\s+(?:is|are)\s+your\s+(?:creators?|makers?|developers?|owners?)\b"
             rf"|\bquem\s+(?:{_MAKE_VERBS_PT})\s+(?:voc[eê]|a?\s*aila(?:\s+nano)?)\b"
+            # "Quem te criou?" / "Quem te fez?" — the object pronoun (te/o/a/
+            # lhe) sits *before* the verb, so there is no object after it to
+            # anchor on; the pronoun itself addresses Aila.
+            rf"|\bquem\s+(?:te|o|a|lhe)\s+(?:{_MAKE_VERBS_PT})\b"
             rf"|\bquem\s+[eé]\s+(?:o\s+)?seu\s+criador\b",
             re.IGNORECASE,
         ),
@@ -183,6 +187,7 @@ _INTENT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
             r"|\bwhy\s+are\s+you\s+(?:called\s+)?beta\b"
             r"|\bare\s+you\s+(?:in\s+)?beta\b"
             r"|\bvoc[eê]\s+(?:est[aá]\s+)?(?:pronta|pronto|terminada|terminado)\b"
+            r"|\bvoc[eê]\s+(?:[eé]\s+|est[aá]\s+)?(?:em\s+)?beta\b"
             r"|\bo\s+que\s+(?:[eé]\s+)?beta\s+significa\b"
             r"|\bo\s+que\s+significa\s+beta\b",
             re.IGNORECASE,
