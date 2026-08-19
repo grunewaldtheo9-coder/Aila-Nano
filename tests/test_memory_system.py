@@ -287,6 +287,21 @@ def test_respond_stream_handles_remember_command(tiny_model, tokenizer, memory):
     assert len(memory.all_memories()) == 1
 
 
+def test_a_portuguese_command_stores_and_confirms_in_portuguese(tiny_model, tokenizer, memory):
+    """A Portuguese speaker must be able to save a memory in their own
+    language — and get a Portuguese confirmation, not an English one."""
+    agent = get_agent("general", tiny_model, tokenizer, memory=memory)
+
+    reply = agent._handle_memory_command("lembre que meu nome é Theo")
+    assert reply == "Entendi — vou lembrar que meu nome é Theo."
+    assert len(memory.all_memories()) == 1
+
+    # And the matching Portuguese forget removes it, confirming in Portuguese.
+    forget = agent._handle_memory_command("esqueça meu nome")
+    assert forget.startswith("Pronto — esqueci")
+    assert memory.all_memories() == []
+
+
 # -- [MEMORY] block formatting -------------------------------------------------
 
 
@@ -352,6 +367,18 @@ def test_lexical_overlap_score_is_zero_for_empty_input():
         ("Forget my name", "forget", "my name"),
         ("what do you remember about me?", "list", None),
         ("What do you remember?", "list", None),
+        # Portuguese — the user talks to Aila in Portuguese, so storing a
+        # memory in Portuguese must work exactly like the English form.
+        ("lembre que meu nome é Theo", "remember", "meu nome é Theo"),
+        ("lembra que eu gosto de azul", "remember", "eu gosto de azul"),
+        ("lembre-se de que eu moro em Berlim", "remember", "eu moro em Berlim"),
+        ("anote que eu gosto de café", "remember", "eu gosto de café"),
+        ("esqueça meu nome", "forget", "meu nome"),
+        ("esqueça que eu gosto de azul", "forget", "eu gosto de azul"),
+        ("apague meu nome", "forget", "meu nome"),
+        ("o que você lembra sobre mim?", "list", None),
+        ("do que você se lembra?", "list", None),
+        ("o que você sabe sobre mim?", "list", None),
     ],
 )
 def test_parse_memory_command_matches_expected_patterns(text, expected_kind, expected_content):
@@ -370,6 +397,11 @@ def test_parse_memory_command_matches_expected_patterns(text, expected_kind, exp
         "Hello, how are you?",
         "",
         "   ",
+        # A trailing "?" marks a question, never a store/delete command —
+        # these used to be captured and stored as (wrong) memories.
+        "Remember when we met?",
+        "Lembra do filme que vimos?",
+        "Você lembra meu nome?",
     ],
 )
 def test_parse_memory_command_returns_none_for_non_commands(text):

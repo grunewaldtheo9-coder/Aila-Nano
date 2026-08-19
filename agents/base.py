@@ -288,9 +288,17 @@ class Agent:
         if command is None:
             return None
 
+        # A Portuguese command ("lembre que ...", "esqueça ...") deserves a
+        # Portuguese confirmation — replying in English to a message the user
+        # wrote in Portuguese is jarring, and this path is the one place we
+        # know for certain what the reply should say.
+        pt = detect_language(user_message) == "pt"
+
         if command.kind == "remember":
             category = guess_category(command.content)
             self.memory.add_memory(command.content, category=category, importance=0.8)
+            if pt:
+                return f"Entendi — vou lembrar que {command.content}."
             return f"Got it — I'll remember that {command.content}."
 
         if command.kind == "forget":
@@ -301,16 +309,21 @@ class Agent:
             best = scored[0] if scored else None
             if best and lexical_overlap_score(command.content, best["content"]) >= FORGET_MATCH_THRESHOLD:
                 self.memory.delete_memory(best["id"])
+                if pt:
+                    return f"Pronto — esqueci que {best['content']}"
                 return f"Done — I've forgotten that {best['content']}"
+            if pt:
+                return "Não tenho nada guardado que combine com isso."
             return "I don't have anything remembered that matches that."
 
         if command.kind == "list":
             facts = self.memory.all_memories()
             if not facts:
-                return "I don't have anything remembered yet."
+                return "Ainda não guardei nada." if pt else "I don't have anything remembered yet."
             facts = sorted(facts, key=lambda f: f["created_at"], reverse=True)[:LIST_MEMORIES_LIMIT]
             lines = "\n".join(f"- {f['content']}" for f in facts)
-            return f"Here's what I remember:\n{lines}"
+            header = "Aqui está o que eu lembro:" if pt else "Here's what I remember:"
+            return f"{header}\n{lines}"
 
         return None
 
