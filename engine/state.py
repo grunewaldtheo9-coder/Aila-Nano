@@ -133,6 +133,15 @@ class AilaEngine:
             store = KnowledgeStore(self.settings.knowledge_store_db)
         base = KnowledgeBase(store)
 
+        # Give Aila her curated, offline facts (capitals, science, maths,
+        # in English and Portuguese) so she answers common questions
+        # directly and correctly. Idempotent and best-effort — never blocks
+        # startup.
+        if self.settings.seed_knowledge_enabled:
+            from knowledge.seed_loader import seed_knowledge_base
+
+            seed_knowledge_base(base)
+
         client = None
         if self.settings.web_search_enabled and self.settings.serper_api_key:
             client = SerperClient(

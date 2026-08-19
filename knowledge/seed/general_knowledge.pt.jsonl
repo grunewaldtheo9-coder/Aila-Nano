@@ -1,0 +1,43 @@
+{"question": "Qual é a capital do Brasil?", "answer": "A capital do Brasil é Brasília.", "category": "geography"}
+{"question": "Qual é a capital de Portugal?", "answer": "A capital de Portugal é Lisboa.", "category": "geography"}
+{"question": "Qual é a capital da França?", "answer": "A capital da França é Paris.", "category": "geography"}
+{"question": "Qual é a capital da Itália?", "answer": "A capital da Itália é Roma.", "category": "geography"}
+{"question": "Qual é a capital da Alemanha?", "answer": "A capital da Alemanha é Berlim.", "category": "geography"}
+{"question": "Qual é a capital da Espanha?", "answer": "A capital da Espanha é Madri.", "category": "geography"}
+{"question": "Qual é a capital do Japão?", "answer": "A capital do Japão é Tóquio.", "category": "geography"}
+{"question": "Qual é a capital dos Estados Unidos?", "answer": "A capital dos Estados Unidos é Washington, D.C.", "category": "geography"}
+{"question": "Qual é a capital da Argentina?", "answer": "A capital da Argentina é Buenos Aires.", "category": "geography"}
+{"question": "Qual é o maior planeta do sistema solar?", "answer": "Júpiter é o maior planeta do sistema solar.", "category": "astronomy"}
+{"question": "Qual é o menor planeta do sistema solar?", "answer": "Mercúrio é o menor planeta do sistema solar.", "category": "astronomy"}
+{"question": "Quantos planetas existem no sistema solar?", "answer": "Existem oito planetas no sistema solar: Mercúrio, Vênus, Terra, Marte, Júpiter, Saturno, Urano e Netuno.", "category": "astronomy"}
+{"question": "Qual é a estrela mais próxima da Terra?", "answer": "O Sol é a estrela mais próxima da Terra. A próxima é Proxima Centauri, a cerca de 4,2 anos-luz.", "category": "astronomy"}
+{"question": "Qual é o maior oceano da Terra?", "answer": "O Oceano Pacífico é o maior oceano da Terra.", "category": "geography"}
+{"question": "Qual é o maior país do mundo em área?", "answer": "A Rússia é o maior país do mundo em área.", "category": "geography"}
+{"question": "Qual é o maior país da América do Sul?", "answer": "O Brasil é o maior país da América do Sul.", "category": "geography"}
+{"question": "Qual é a montanha mais alta do mundo?", "answer": "O Monte Everest é a montanha mais alta do mundo, com cerca de 8.849 metros.", "category": "geography"}
+{"question": "Quantos continentes existem?", "answer": "Existem sete continentes: África, Antártida, Ásia, Europa, América do Norte, Oceania e América do Sul.", "category": "geography"}
+{"question": "Qual é a fórmula química da água?", "answer": "A fórmula química da água é H2O — dois átomos de hidrogênio e um de oxigênio.", "category": "science"}
+{"question": "O que é fotossíntese?", "answer": "Fotossíntese é o processo pelo qual as plantas usam a luz do sol, água e gás carbônico para produzir alimento (glicose) e liberar oxigênio.", "category": "science"}
+{"question": "Qual é a velocidade da luz?", "answer": "A velocidade da luz no vácuo é de cerca de 299.792 quilômetros por segundo (aproximadamente 300.000 km/s).", "category": "science"}
+{"question": "Quantos ossos tem o corpo humano adulto?", "answer": "O corpo humano adulto tem 206 ossos.", "category": "science"}
+{"question": "Qual é o maior órgão do corpo humano?", "answer": "A pele é o maior órgão do corpo humano.", "category": "science"}
+{"question": "Qual órgão bombeia o sangue pelo corpo?", "answer": "O coração bombeia o sangue pelo corpo.", "category": "science"}
+{"question": "Em quantos graus a água ferve?", "answer": "A água ferve a 100 graus Celsius ao nível do mar.", "category": "science"}
+{"question": "Em quantos graus a água congela?", "answer": "A água congela a 0 graus Celsius.", "category": "science"}
+{"question": "Qual é o maior animal do mundo?", "answer": "A baleia-azul é o maior animal do mundo.", "category": "science"}
+{"question": "Qual é o animal terrestre mais rápido?", "answer": "O guepardo é o animal terrestre mais rápido, chegando a cerca de 100 km/h.", "category": "science"}
+{"question": "Quantos dias tem um ano?", "answer": "Um ano tem 365 dias, ou 366 dias em um ano bissexto.", "category": "everyday"}
+{"question": "Quantos dias tem uma semana?", "answer": "Uma semana tem sete dias.", "category": "everyday"}
+{"question": "Quantas cores tem o arco-íris?", "answer": "O arco-íris tem sete cores: vermelho, laranja, amarelo, verde, azul, anil e violeta.", "category": "everyday"}
+{"question": "Qual é o valor de pi?", "answer": "Pi vale aproximadamente 3,14159. É a razão entre a circunferência de um círculo e o seu diâmetro.", "category": "math"}
+{"question": "Quantos lados tem um triângulo?", "answer": "Um triângulo tem três lados.", "category": "math"}
+{"question": "O que é um número primo?", "answer": "Um número primo é um número inteiro maior que 1 que só pode ser dividido por 1 e por ele mesmo, como 2, 3, 5, 7 e 11.", "category": "math"}
+{"question": "Quem escreveu Romeu e Julieta?", "answer": "Romeu e Julieta foi escrito por William Shakespeare.", "category": "history"}
+{"question": "Quem pintou a Mona Lisa?", "answer": "A Mona Lisa foi pintada por Leonardo da Vinci.", "category": "history"}
+{"question": "Quem criou a teoria da relatividade?", "answer": "Albert Einstein criou a teoria da relatividade.", "category": "history"}
+{"question": "Quem descobriu o Brasil?", "answer": "A esquadra portuguesa comandada por Pedro Álvares Cabral chegou ao Brasil em 1500.", "category": "history"}
+{"question": "Qual é a moeda do Brasil?", "answer": "A moeda do Brasil é o real.", "category": "everyday"}
+{"question": "Qual é a moeda de Portugal?", "answer": "A moeda de Portugal é o euro.", "category": "everyday"}
+{"question": "Qual é a língua falada no Brasil?", "answer": "A língua oficial do Brasil é o português.", "category": "everyday"}
+{"question": "O que significa CPU?", "answer": "CPU significa Unidade Central de Processamento — a parte do computador que executa as instruções.", "category": "technology"}
+{"question": "O que é a internet?", "answer": "A internet é uma rede global que conecta computadores do mundo todo para que possam compartilhar informação.", "category": "technology"}

@@ -304,9 +304,12 @@ class ToolRouter:
         if not self._is_information_question(query):
             return RouteResult()
 
-        # 5. Stored global knowledge.
+        # 5. Stored global knowledge, in the language the question was
+        #    asked in (a Portuguese question must not be answered with the
+        #    English copy of a fact — the translation fallback handles the
+        #    cross-language case properly).
         if self.knowledge is not None:
-            item = self.knowledge.best_direct_answer(query)
+            item = self.knowledge.best_direct_answer(query, language=language)
             if item is not None:
                 logger.info("knowledge hit id=%s relevance=%.2f", item.id, item.relevance)
                 return RouteResult(direct_reply=item.answer, tool_used="knowledge")

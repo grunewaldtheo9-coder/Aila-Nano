@@ -143,6 +143,14 @@ class EngineSettings:
     translation_enabled: bool = field(
         default_factory=lambda: _env_bool("AILA_TRANSLATE", True)
     )
+    # Load the curated, offline general-knowledge facts in
+    # knowledge/seed/*.jsonl into the knowledge base at startup. On by
+    # default: it needs no network or key, is idempotent (skipped when the
+    # seed files are unchanged), and is what lets Aila answer common facts
+    # directly and correctly instead of guessing. See knowledge/seed_loader.py.
+    seed_knowledge_enabled: bool = field(
+        default_factory=lambda: _env_bool("AILA_SEED_KNOWLEDGE", True)
+    )
     retrieval_top_k: int = field(default_factory=lambda: _env_int("AILA_RETRIEVAL_TOP_K", 3))
     relevance_threshold: float = field(
         default_factory=lambda: _env_float("AILA_RELEVANCE_THRESHOLD", 0.2)

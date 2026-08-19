@@ -25,7 +25,7 @@ import logging
 from dataclasses import dataclass
 
 from knowledge.store import KnowledgeStore
-from memory.lexical import has_distinctive_overlap, lexical_overlap_score
+from memory.lexical import has_distinctive_overlap, lexical_overlap_score, same_subject
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,7 @@ class KnowledgeItem:
     verification: str
     relevance: float  # lexical overlap vs. the current query
     source_urls: list[str]
+    language: str = "en"
 
 
 class KnowledgeBase:
@@ -63,11 +64,24 @@ class KnowledgeBase:
 
     # -- retrieval ---------------------------------------------------------
 
-    def lookup(self, query: str, k: int = 3, threshold: float = SERVE_THRESHOLD) -> list[KnowledgeItem]:
+    def lookup(
+        self, query: str, k: int = 3, threshold: float = SERVE_THRESHOLD, language: str | None = None
+    ) -> list[KnowledgeItem]:
         """Relevance-gated lookup. Returns [] when nothing clears the
         threshold — the signal that web research (or a plain model
         answer) is needed. Conflicted items are excluded: a fact under
-        active contradiction must not be served as truth."""
+        active contradiction must not be served as truth.
+
+        `language` is a *tiebreaker*, not a hard filter: among equally
+        relevant facts the one in the question's language wins, so a
+        Portuguese question gets the Portuguese copy of a fact rather than
+        the English one. It is deliberately not a hard filter — language
+        detection is imperfect ("Quantos continentes existem?" has no
+        accented letters and reads as English to the detector), and a hard
+        filter would then drop the very fact that answers the question.
+        Relevance already separates the right fact from a wrong-language
+        near-match, because the same-language question shares more words
+        with the query."""
         items = []
         for row in self.store.all_knowledge():
             if row["verification"] == "conflicted":
@@ -97,17 +111,25 @@ class KnowledgeBase:
                     verification=row["verification"],
                     relevance=relevance,
                     source_urls=row["source_urls"],
+                    language=row["language"],
                 )
             )
-        items.sort(key=lambda i: (i.relevance, i.confidence), reverse=True)
+        # Relevance first, then confidence; language is the final
+        # tiebreaker so that when two facts are otherwise equally good, the
+        # one in the question's language is served.
+        items.sort(
+            key=lambda i: (i.relevance, i.confidence, i.language == language),
+            reverse=True,
+        )
         for item in items[:k]:
             self.store.touch_knowledge(item.id)
         return items[:k]
 
-    def best_direct_answer(self, query: str) -> KnowledgeItem | None:
+    def best_direct_answer(self, query: str, language: str | None = None) -> KnowledgeItem | None:
         """The single best item usable as a *direct* answer: relevant,
-        not conflicted, and confident enough. None otherwise."""
-        items = self.lookup(query, k=1)
+        not conflicted, confident enough, and — when `language` is given —
+        in that language. None otherwise."""
+        items = self.lookup(query, k=1, language=language)
         if items and items[0].confidence >= DIRECT_ANSWER_CONFIDENCE:
             return items[0]
         return None
@@ -145,7 +167,20 @@ class KnowledgeBase:
             return ("rejected", -1)
 
         for row in self.store.all_knowledge():
+            # Only the same-language copy of a fact can be its duplicate: a
+            # Portuguese and an English phrasing of "the capital of Portugal"
+            # overlap perfectly but are two facts we must keep, one per
+            # language — not a conflict.
+            if row["language"] != language:
+                continue
             if lexical_overlap_score(question, row["question"]) < DEDUP_QUESTION_THRESHOLD:
+                continue
+            # A shared question *template* is not a shared question. "The
+            # largest planet?" and "The smallest planet?" overlap on
+            # "planet/solar/system" but ask about different subjects, so
+            # they are neither duplicates (don't merge) nor contradictions
+            # (don't mark either conflicted) — they simply coexist.
+            if not same_subject(question, row["question"]):
                 continue
             agreement = lexical_overlap_score(answer, row["answer"])
             if agreement >= ANSWER_AGREEMENT_THRESHOLD:

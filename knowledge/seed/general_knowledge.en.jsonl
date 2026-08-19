@@ -1,0 +1,51 @@
+{"question": "What is the capital of France?", "answer": "The capital of France is Paris.", "category": "geography"}
+{"question": "What is the capital of Brazil?", "answer": "The capital of Brazil is Brasília.", "category": "geography"}
+{"question": "What is the capital of the United States?", "answer": "The capital of the United States is Washington, D.C.", "category": "geography"}
+{"question": "What is the capital of Japan?", "answer": "The capital of Japan is Tokyo.", "category": "geography"}
+{"question": "What is the capital of Portugal?", "answer": "The capital of Portugal is Lisbon.", "category": "geography"}
+{"question": "What is the capital of Italy?", "answer": "The capital of Italy is Rome.", "category": "geography"}
+{"question": "What is the capital of Germany?", "answer": "The capital of Germany is Berlin.", "category": "geography"}
+{"question": "What is the capital of England?", "answer": "The capital of England is London.", "category": "geography"}
+{"question": "What is the capital of Spain?", "answer": "The capital of Spain is Madrid.", "category": "geography"}
+{"question": "What is the capital of Canada?", "answer": "The capital of Canada is Ottawa.", "category": "geography"}
+{"question": "What is the largest planet in the solar system?", "answer": "Jupiter is the largest planet in the solar system.", "category": "astronomy"}
+{"question": "What is the smallest planet in the solar system?", "answer": "Mercury is the smallest planet in the solar system.", "category": "astronomy"}
+{"question": "What is the closest planet to the sun?", "answer": "Mercury is the closest planet to the sun.", "category": "astronomy"}
+{"question": "How many planets are in the solar system?", "answer": "There are eight planets in the solar system: Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, and Neptune.", "category": "astronomy"}
+{"question": "What is the closest star to Earth?", "answer": "The sun is the closest star to Earth. The next closest is Proxima Centauri, about 4.2 light-years away.", "category": "astronomy"}
+{"question": "What is the largest ocean on Earth?", "answer": "The Pacific Ocean is the largest ocean on Earth.", "category": "geography"}
+{"question": "What is the largest country in the world by area?", "answer": "Russia is the largest country in the world by area.", "category": "geography"}
+{"question": "What is the longest river in the world?", "answer": "The Nile and the Amazon are the two longest rivers in the world; by most measurements the Nile is slightly longer.", "category": "geography"}
+{"question": "What is the tallest mountain in the world?", "answer": "Mount Everest is the tallest mountain above sea level, at about 8,849 metres.", "category": "geography"}
+{"question": "How many continents are there?", "answer": "There are seven continents: Africa, Antarctica, Asia, Europe, North America, Oceania, and South America.", "category": "geography"}
+{"question": "What is the chemical symbol for water?", "answer": "The chemical formula for water is H2O — two hydrogen atoms and one oxygen atom.", "category": "science"}
+{"question": "What is the chemical symbol for gold?", "answer": "The chemical symbol for gold is Au.", "category": "science"}
+{"question": "What gas do plants absorb from the air?", "answer": "Plants absorb carbon dioxide from the air and release oxygen during photosynthesis.", "category": "science"}
+{"question": "What is photosynthesis?", "answer": "Photosynthesis is the process by which plants use sunlight, water, and carbon dioxide to make food (glucose) and release oxygen.", "category": "science"}
+{"question": "What is the speed of light?", "answer": "The speed of light in a vacuum is about 299,792 kilometres per second (roughly 300,000 km/s).", "category": "science"}
+{"question": "How many bones are in the adult human body?", "answer": "An adult human body has 206 bones.", "category": "science"}
+{"question": "What is the largest organ in the human body?", "answer": "The skin is the largest organ in the human body.", "category": "science"}
+{"question": "What organ pumps blood through the body?", "answer": "The heart pumps blood through the body.", "category": "science"}
+{"question": "How many hearts does an octopus have?", "answer": "An octopus has three hearts.", "category": "science"}
+{"question": "What is the boiling point of water?", "answer": "Water boils at 100 degrees Celsius (212 degrees Fahrenheit) at sea level.", "category": "science"}
+{"question": "What is the freezing point of water?", "answer": "Water freezes at 0 degrees Celsius (32 degrees Fahrenheit).", "category": "science"}
+{"question": "How many days are in a year?", "answer": "A year has 365 days, or 366 days in a leap year.", "category": "everyday"}
+{"question": "How many seconds are in a minute?", "answer": "There are 60 seconds in a minute.", "category": "everyday"}
+{"question": "How many minutes are in an hour?", "answer": "There are 60 minutes in an hour.", "category": "everyday"}
+{"question": "How many days are in a week?", "answer": "There are seven days in a week.", "category": "everyday"}
+{"question": "How many colours are in a rainbow?", "answer": "A rainbow has seven colours: red, orange, yellow, green, blue, indigo, and violet.", "category": "everyday"}
+{"question": "What is the value of pi?", "answer": "Pi is approximately 3.14159. It is the ratio of a circle's circumference to its diameter.", "category": "math"}
+{"question": "How many sides does a triangle have?", "answer": "A triangle has three sides.", "category": "math"}
+{"question": "How many sides does a hexagon have?", "answer": "A hexagon has six sides.", "category": "math"}
+{"question": "What is a prime number?", "answer": "A prime number is a whole number greater than 1 that can only be divided evenly by 1 and itself, like 2, 3, 5, 7, and 11.", "category": "math"}
+{"question": "Who wrote Romeo and Juliet?", "answer": "Romeo and Juliet was written by William Shakespeare.", "category": "history"}
+{"question": "Who painted the Mona Lisa?", "answer": "The Mona Lisa was painted by Leonardo da Vinci.", "category": "history"}
+{"question": "Who developed the theory of relativity?", "answer": "Albert Einstein developed the theory of relativity.", "category": "history"}
+{"question": "What is the largest mammal in the world?", "answer": "The blue whale is the largest mammal in the world.", "category": "science"}
+{"question": "What is the fastest land animal?", "answer": "The cheetah is the fastest land animal, reaching speeds of about 100 km/h.", "category": "science"}
+{"question": "What language has the most native speakers?", "answer": "Mandarin Chinese has the most native speakers in the world.", "category": "everyday"}
+{"question": "What is the currency of the United States?", "answer": "The currency of the United States is the US dollar.", "category": "everyday"}
+{"question": "What is the currency of Brazil?", "answer": "The currency of Brazil is the Brazilian real.", "category": "everyday"}
+{"question": "What does CPU stand for?", "answer": "CPU stands for Central Processing Unit — the part of a computer that carries out instructions.", "category": "technology"}
+{"question": "What does AI stand for?", "answer": "AI stands for Artificial Intelligence — computer systems that can perform tasks that normally need human intelligence.", "category": "technology"}
+{"question": "What is the internet?", "answer": "The internet is a global network that connects computers around the world so they can share information.", "category": "technology"}

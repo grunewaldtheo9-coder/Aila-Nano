@@ -127,6 +127,31 @@ def lexical_overlap_score(query: str, text: str) -> float:
     return overlap / min(len(q_tokens), len(t_tokens))
 
 
+def distinctive_terms(text: str, generic: frozenset[str] | None = None) -> set[str]:
+    """The subject-identifying words of `text`: significant tokens minus
+    the generic asking/role words. These are what say *what a question is
+    about* — "france" in "the capital of France", "largest" in "the
+    largest planet"."""
+    g = GENERIC_QUESTION_TERMS if generic is None else generic
+    return tokenize(text) - g
+
+
+def same_subject(a: str, b: str, generic: frozenset[str] | None = None) -> bool:
+    """True when two questions are about the *same subject* — their
+    subject-identifying terms are the same set.
+
+    This is stricter than a high overlap score, and deliberately so: a
+    question *template* ("What is the capital of X?", "the {largest,
+    smallest} planet") is shared by many distinct facts, so two of them
+    overlap heavily on the template words alone. Overlap says "similar
+    shape"; this says "same thing". "capital of France" and "capital of
+    Brazil" are NOT the same subject (france != brazil); "the capital of
+    France" and "France's capital" are. Used to keep dedup/conflict from
+    collapsing a whole family of templated facts into one.
+    """
+    return distinctive_terms(a, generic) == distinctive_terms(b, generic)
+
+
 def has_distinctive_overlap(query: str, text: str, generic: frozenset[str] | None = None) -> bool:
     """True when the two texts share at least one term that actually
     identifies a subject — i.e. a shared word that isn't just a generic

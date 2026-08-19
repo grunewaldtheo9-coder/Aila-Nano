@@ -164,9 +164,12 @@ def test_engine_reports_whether_web_search_is_active(tokenizer, tmp_path, monkey
 
 
 def test_engine_counts_what_it_knows(engine):
-    assert engine.known_fact_count == 0
+    # A fresh engine already knows its curated seed facts, so count the
+    # delta rather than assuming an empty store.
+    before = engine.known_fact_count
+    assert before > 0  # the seed facts loaded at startup
     engine.knowledge_store.add_knowledge("Who founded Apple?", "Steve Jobs and others.")
-    assert engine.known_fact_count == 1
+    assert engine.known_fact_count == before + 1
 
 
 def test_study_without_sources_says_so(tokenizer, tmp_path, monkeypatch):
