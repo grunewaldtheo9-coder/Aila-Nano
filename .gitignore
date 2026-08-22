@@ -64,3 +64,4 @@ memory/data/*.faiss
 knowledge/data/*.db
 knowledge/data/*.sqlite3
 !knowledge/data/.gitkeep
+datasets/conversational/split/

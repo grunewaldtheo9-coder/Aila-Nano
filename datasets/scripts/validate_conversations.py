@@ -58,26 +58,108 @@ def validate_file(path: str) -> tuple[int, int, int, list[str]]:
     return ok, bad, duplicates, errors
 
 
+def _assistant_turns(conv: dict) -> int:
+    return sum(1 for m in conv.get("messages", []) if m.get("role") == "assistant")
+
+
+def _user_turns(conv: dict) -> int:
+    return sum(1 for m in conv.get("messages", []) if m.get("role") == "user")
+
+
+def compute_stats(records: list[dict]) -> str:
+    """Human-readable statistics over valid records — real counts only."""
+    if not records:
+        return "No conversations."
+    langs: dict[str, int] = {}
+    cats: dict[str, int] = {}
+    turn_buckets = {"2-turn": 0, "3-5 turn": 0, "6-10 turn": 0, "10+ turn": 0}
+    req_mem = req_web = 0
+    total_msgs = 0
+    total_turns = 0
+    turn_counts: list[int] = []
+    for r in records:
+        lang = r.get("language", "?")
+        langs[lang] = langs.get(lang, 0) + 1
+        cat = r.get("category", "?")
+        cats[cat] = cats.get(cat, 0) + 1
+        req_mem += 1 if r.get("requires_memory") else 0
+        req_web += 1 if r.get("requires_web") else 0
+        total_msgs += len(r.get("messages", []))
+        # A "turn" = a user+assistant exchange; count user turns as turns.
+        t = _user_turns(r) + _assistant_turns(r)
+        turn_counts.append(t)
+        total_turns += t
+        if t <= 2:
+            turn_buckets["2-turn"] += 1
+        elif t <= 5:
+            turn_buckets["3-5 turn"] += 1
+        elif t <= 10:
+            turn_buckets["6-10 turn"] += 1
+        else:
+            turn_buckets["10+ turn"] += 1
+    turn_counts.sort()
+    median = turn_counts[len(turn_counts) // 2]
+    lines = ["Dataset Statistics", "------------------", f"Total conversations: {len(records)}", ""]
+    lines += [f"Total messages: {total_msgs}", f"Average turns: {total_turns / len(records):.1f}", f"Median turns: {median}", ""]
+    lines.append("Languages:")
+    for k, v in sorted(langs.items()):
+        lines.append(f"  {k}: {v}")
+    lines.append("")
+    lines.append("Turn depth:")
+    for k, v in turn_buckets.items():
+        lines.append(f"  {k}: {v}")
+    lines.append("")
+    lines.append("Categories:")
+    for k, v in sorted(cats.items(), key=lambda kv: -kv[1]):
+        lines.append(f"  {k}: {v}")
+    lines.append("")
+    lines.append(f"Requires memory: {req_mem}")
+    lines.append(f"Requires web:    {req_web}")
+    return "\n".join(lines)
+
+
+def _load_valid_records(path: str) -> list[dict]:
+    out: list[dict] = []
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if validate_conversation(record) is None:
+            out.append(record)
+    return out
+
+
 def main(argv: list[str]) -> int:
-    patterns = argv or ["datasets/conversational/*.jsonl"]
+    show_stats = "--stats" in argv
+    argv = [a for a in argv if a != "--stats"]
+    patterns = argv or ["datasets/conversational/**/*.jsonl"]
     paths: list[str] = []
     for p in patterns:
-        paths.extend(sorted(glob.glob(p)))
+        paths.extend(sorted(glob.glob(p, recursive=True)))
     if not paths:
         print("No files matched.")
         return 1
 
     total_ok = total_bad = total_dupes = 0
     all_errors: list[str] = []
+    all_records: list[dict] = []
     for path in paths:
         ok, bad, dupes, errors = validate_file(path)
         total_ok += ok
         total_bad += bad
         total_dupes += dupes
         all_errors.extend(errors)
+        all_records.extend(_load_valid_records(path))
         print(f"{path}: {ok} valid, {bad} invalid, {dupes} duplicate")
 
     print(f"\nTotal: {total_ok} valid, {total_bad} invalid, {total_dupes} duplicate")
+    if show_stats:
+        print()
+        print(compute_stats(all_records))
     if all_errors:
         print("\nProblems:")
         for e in all_errors[:50]:
