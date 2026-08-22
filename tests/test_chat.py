@@ -25,6 +25,7 @@ def engine(tokenizer, tmp_path, monkeypatch):
     monkeypatch.setenv("AILA_KNOWLEDGE_FAISS", str(tmp_path / "kb.faiss"))
     monkeypatch.setenv("AILA_KNOWLEDGE_STORE_DB", str(tmp_path / "kstore.db"))
     monkeypatch.setenv("AILA_DEVICE", "cpu")
+    monkeypatch.setenv("AILA_SEED_KNOWLEDGE", "false")  # keep chat tests fast
 
     eng = AilaEngine(EngineSettings())
     yield eng

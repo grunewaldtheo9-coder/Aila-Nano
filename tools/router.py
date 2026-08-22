@@ -301,18 +301,27 @@ class ToolRouter:
             intent, answer = identity
             return RouteResult(direct_reply=answer, tool_used=f"identity:{intent}")
 
-        if not self._is_information_question(query):
-            return RouteResult()
-
         # 5. Stored global knowledge, in the language the question was
         #    asked in (a Portuguese question must not be answered with the
         #    English copy of a fact — the translation fallback handles the
         #    cross-language case properly).
+        #
+        #    Runs *before* the information-question gate below: that gate
+        #    exists to decide whether to spend a *web* lookup, and it
+        #    rightly excludes questions that address "you". But a general
+        #    question can legitimately use a generic "you" ("What colour do
+        #    you get by mixing blue and yellow?") — and if we already hold
+        #    the exact answer, we should give it. Knowledge lookup is
+        #    strict (relevance + a shared distinctive term + high
+        #    confidence), so serving it here cannot leak an off-topic fact.
         if self.knowledge is not None:
             item = self.knowledge.best_direct_answer(query, language=language)
             if item is not None:
                 logger.info("knowledge hit id=%s relevance=%.2f", item.id, item.relevance)
                 return RouteResult(direct_reply=item.answer, tool_used="knowledge")
+
+        if not self._is_information_question(query):
+            return RouteResult()
 
         # 6. Web research. Whatever comes back is served as text — see
         #    the module docstring for why the model never gets to

@@ -25,9 +25,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SEED_DIR = REPO_ROOT / "knowledge" / "seed"
 
 
-@pytest.fixture
-def seeded(tmp_path):
-    store = KnowledgeStore(str(tmp_path / "k.db"))
+@pytest.fixture(scope="module")
+def seeded(tmp_path_factory):
+    # Seeded once for the whole module: these tests only read/route, never
+    # mutate the store, so one ~2s seed is shared instead of one per test.
+    store = KnowledgeStore(str(tmp_path_factory.mktemp("seed") / "k.db"))
     base = KnowledgeBase(store)
     created = seed_knowledge_base(base)
     yield base, store, created
@@ -96,6 +98,35 @@ def test_seeded_facts_are_served(seeded, question, expected):
     result = router.route(question)
     assert result.tool_used == "knowledge"
     assert expected.lower() in result.direct_reply.lower()
+
+
+def test_a_generic_you_question_is_answered_from_knowledge(seeded):
+    """"What colour do you get by mixing blue and yellow?" uses a generic
+    "you" (meaning "one"), not a question about Aila. The web-research gate
+    excludes "you" questions, but a fact we already hold must still be
+    served — so knowledge lookup runs before that gate."""
+    base, _, _ = seeded
+    router = ToolRouter(knowledge=base)
+    result = router.route("What colour do you get by mixing blue and yellow?")
+    assert result.tool_used == "knowledge"
+    assert "green" in result.direct_reply.lower()
+
+
+def test_knowledge_does_not_hijack_identity_questions(seeded):
+    """Identity questions are matched before knowledge, so a general fact
+    base can never answer "What is your name?" or "Who created you?"."""
+    base, _, _ = seeded
+    router = ToolRouter(knowledge=base)
+    assert router.route("What is your name?").tool_used == "identity:name"
+    assert router.route("Who created you?").tool_used == "identity:creator"
+
+
+def test_the_seed_covers_many_topics(seeded):
+    _, store, _ = seeded
+    categories = {r["category"] for r in store.all_knowledge()}
+    # A broad spread, not just one subject.
+    assert {"geography", "animals", "astronomy", "history", "science", "sports", "math"} <= categories
+    assert len(store.all_knowledge()) > 300
 
 
 def test_a_portuguese_question_is_answered_in_portuguese(seeded):

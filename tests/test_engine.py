@@ -22,6 +22,10 @@ def engine(tokenizer, tmp_path, monkeypatch):
     monkeypatch.setenv("AILA_KNOWLEDGE_FAISS", str(tmp_path / "kb.faiss"))
     monkeypatch.setenv("AILA_KNOWLEDGE_STORE_DB", str(tmp_path / "kstore.db"))
     monkeypatch.setenv("AILA_DEVICE", "cpu")
+    # Seeding ~430 curated facts is a one-time startup cost the seeding
+    # tests already cover; skip it here so the many engine-building tests
+    # stay fast. Tests that need the seed switch it back on explicitly.
+    monkeypatch.setenv("AILA_SEED_KNOWLEDGE", "false")
 
     eng = AilaEngine(EngineSettings())
     yield eng
@@ -164,12 +168,34 @@ def test_engine_reports_whether_web_search_is_active(tokenizer, tmp_path, monkey
 
 
 def test_engine_counts_what_it_knows(engine):
-    # A fresh engine already knows its curated seed facts, so count the
-    # delta rather than assuming an empty store.
+    # Count the delta rather than assuming an exact starting number, so the
+    # test is independent of whether seeding is on.
     before = engine.known_fact_count
-    assert before > 0  # the seed facts loaded at startup
     engine.knowledge_store.add_knowledge("Who founded Apple?", "Steve Jobs and others.")
     assert engine.known_fact_count == before + 1
+
+
+def test_engine_seeds_curated_knowledge_at_startup(tokenizer, tmp_path, monkeypatch):
+    """With seeding on (the default), a fresh engine already knows its
+    curated facts and can answer one straight away."""
+    monkeypatch.setenv("AILA_CHECKPOINT", str(tmp_path / "missing.pt"))
+    monkeypatch.setenv("AILA_FALLBACK_CHECKPOINT", str(tmp_path / "missing2.pt"))
+    monkeypatch.setenv("AILA_TOKENIZER", tokenizer.model_path)
+    monkeypatch.setenv("AILA_MEMORY_DB", str(tmp_path / "mem.db"))
+    monkeypatch.setenv("AILA_MEMORY_FAISS", str(tmp_path / "mem.faiss"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_DB", str(tmp_path / "kb.db"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_FAISS", str(tmp_path / "kb.faiss"))
+    monkeypatch.setenv("AILA_KNOWLEDGE_STORE_DB", str(tmp_path / "kstore.db"))
+    monkeypatch.setenv("AILA_DEVICE", "cpu")
+    monkeypatch.setenv("AILA_SEED_KNOWLEDGE", "true")
+    monkeypatch.setenv("SERPER_API_KEY", "")
+    monkeypatch.setenv("AILA_WIKIPEDIA_ENABLED", "false")
+
+    with AilaEngine(EngineSettings()) as engine:
+        assert engine.known_fact_count > 300
+        result = engine.router.route("What is the capital of France?")
+        assert result.tool_used == "knowledge"
+        assert "Paris" in result.direct_reply
 
 
 def test_study_without_sources_says_so(tokenizer, tmp_path, monkeypatch):
