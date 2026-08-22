@@ -30,6 +30,10 @@ class LongTermMemory:
         importance: float = 0.5,
         session_id: str | None = None,
         conversation_id: str | None = None,
+        source: str | None = None,
+        confidence: float | None = None,
+        attribute_key: str | None = None,
+        version: int = 1,
     ) -> int:
         """Store a fact. `importance` in [0, 1] influences ranking (see
         memory/ranking.py) — callers can set it higher for facts the user
@@ -41,6 +45,10 @@ class LongTermMemory:
             conversation_id=conversation_id,
             session_id=session_id,
             category=category,
+            source=source,
+            confidence=confidence,
+            attribute_key=attribute_key,
+            version=version,
         )
 
     def get_memory(self, fact_id: int) -> dict | None:

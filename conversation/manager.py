@@ -62,6 +62,16 @@ class ConversationState:
     recent: list[dict] = field(default_factory=list)  # recent {role,content} turns
 
 
+@dataclass
+class ContextBundle:
+    """Everything the model should condition on this turn, assembled in one
+    place so the generation path has a single canonical context source."""
+    summary: str = ""
+    relevant_facts: list[dict] = field(default_factory=list)
+    recent: list[dict] = field(default_factory=list)
+    active_topics: list[str] = field(default_factory=list)
+
+
 class ConversationManager:
     """Wraps the existing memory manager (which owns both the conversation
     store and the long-term facts). Adds topic tracking, summarisation, and
@@ -149,6 +159,25 @@ class ConversationManager:
             active_topics=self.extract_topics(all_turns),
             summary=summary,
             recent=recent,
+        )
+
+    def assemble(self, conversation_id: str, query: str, max_facts: int = 5) -> "ContextBundle":
+        """The canonical context for a generation turn: a summary of older
+        turns (when the conversation is long enough), the relevant long-term
+        memories for this query, the recent turns, and the active topics.
+
+        This is the single source the agent uses to build the model prompt,
+        so summaries and corrected memories actually reach the model. Recent
+        raw turns are returned too, but whether they are replayed into the
+        prompt is the agent's decision (the 20M model is single-turn, so it
+        currently does not — a trained 50M model can)."""
+        st = self.state(conversation_id)
+        facts = self.memory.get_relevant_memories(query, k=max_facts) if self.memory is not None else []
+        return ContextBundle(
+            summary=st.summary,
+            relevant_facts=facts,
+            recent=st.recent,
+            active_topics=st.active_topics,
         )
 
     def build_context_block(self, conversation_id: str, query: str, max_facts: int = 5) -> str:

@@ -38,6 +38,7 @@ def get_agent(
     allow_freeform: bool = True,
     translator=None,
     emit_status=None,
+    conversation_manager=None,
 ) -> Agent:
     if agent_name not in AGENT_REGISTRY:
         raise ValueError(
@@ -54,4 +55,5 @@ def get_agent(
         allow_freeform=allow_freeform,
         translator=translator,
         emit_status=emit_status,
+        conversation_manager=conversation_manager,
     )

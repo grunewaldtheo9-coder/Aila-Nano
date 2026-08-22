@@ -23,6 +23,7 @@ from vectordb.embedder import AilaEmbedder
 class MemoryContext:
     history: list[dict] = field(default_factory=list)  # [{"role": ..., "content": ...}]
     relevant_facts: list[dict] = field(default_factory=list)
+    summary: str = ""  # ConversationManager summary of older turns, when long
 
 
 class MemoryManager:
@@ -63,8 +64,73 @@ class MemoryManager:
         category: str = DEFAULT_CATEGORY,
         importance: float = 0.5,
         session_id: str | None = None,
+        source: str | None = None,
+        confidence: float | None = None,
     ) -> int:
-        return self.semantic.add_memory(content, category=category, importance=importance, session_id=session_id)
+        """Store a long-term fact.
+
+        If the statement names a *versioned attribute* — "my favorite game
+        is X", "my name is X", "I'm building X" — a new value supersedes the
+        old one (last-writer-wins): the previous active value is marked
+        superseded (kept for history) and the new one gets the next version
+        number, so retrieval only ever returns the current value. Statements
+        with no recognizable attribute are stored as ordinary memories.
+        """
+        from memory.attributes import extract_attribute
+
+        extracted = extract_attribute(content)
+        attribute_key = extracted[0] if extracted else None
+        version = 1
+        old_ids: list[int] = []
+        if attribute_key is not None:
+            existing = self.store.get_active_facts_by_attribute(attribute_key, session_id=session_id)
+            old_ids = [f["id"] for f in existing]
+            version = self.store.max_attribute_version(attribute_key) + 1
+
+        new_id = self.semantic.add_memory(
+            content,
+            category=category,
+            importance=importance,
+            session_id=session_id,
+            source=source,
+            confidence=confidence,
+            attribute_key=attribute_key,
+            version=version,
+        )
+        # Supersede the prior value(s) of this attribute now that the new
+        # one exists (so retrieval returns Zelda, not Minecraft).
+        for old_id in old_ids:
+            if old_id != new_id:
+                self.store.supersede_fact(old_id, new_id)
+        return new_id
+
+    # -- versioned-attribute helpers ----------------------------------------
+
+    def current_attribute(self, attribute_key: str, session_id: str | None = None) -> dict | None:
+        """The single current (active) fact for an attribute, or None."""
+        facts = self.store.get_active_facts_by_attribute(attribute_key, session_id=session_id)
+        return facts[0] if facts else None
+
+    def attribute_history(self, attribute_key: str, session_id: str | None = None) -> list[dict]:
+        """Every value ever recorded for an attribute, newest first."""
+        return self.store.get_attribute_history(attribute_key, session_id=session_id)
+
+    def forget_attribute(self, attribute_key: str, session_id: str | None = None) -> int:
+        """Deactivate the current value(s) of an attribute (a real forget:
+        retrieval no longer returns them). Returns how many were deactivated."""
+        facts = self.store.get_active_facts_by_attribute(attribute_key, session_id=session_id)
+        for f in facts:
+            self.store.set_fact_status(f["id"], "deleted")
+        return len(facts)
+
+    def memory_audit(self) -> dict:
+        """Developer diagnostic: counts of active / superseded / deleted."""
+        counts = self.store.count_by_status()
+        return {
+            "active": counts.get("active", 0),
+            "superseded": counts.get("superseded", 0),
+            "deleted": counts.get("deleted", 0),
+        }
 
     def get_memory(self, fact_id: int) -> dict | None:
         return self.semantic.get_memory(fact_id)

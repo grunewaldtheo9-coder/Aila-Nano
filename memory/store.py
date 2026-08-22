@@ -53,11 +53,36 @@ CREATE TABLE IF NOT EXISTS long_term_facts (
 #   category:   one of MEMORY_CATEGORIES, defaults to 'other'.
 #   updated_at: last time the fact's content/importance/category changed
 #     (distinct from last_accessed_at, which tracks *reads* via touch_fact).
+#   status:     'active' (default / NULL), 'superseded' (a newer value for
+#     the same attribute replaced it), or 'deleted' (the user forgot it).
+#     Only active facts are retrieved normally; NULL is treated as active so
+#     databases written before this column upgrade in place.
+#   source:     where the fact came from — 'explicit_user_request',
+#     'conversation', 'system', 'tool', 'import'.
+#   confidence: [0,1]; ~0.95 for explicit "remember that ...", lower for
+#     facts merely mentioned in passing.
+#   attribute_key: a normalized key ('favorite_game', 'name', 'project')
+#     that ties successive values of the same fact together, so a new value
+#     supersedes the old one (last-writer-wins) instead of coexisting.
+#   superseded_by: the id of the newer fact that replaced this one.
+#   version:    1, 2, 3, ... within an attribute_key's history.
 _MIGRATIONS: list[tuple[str, str]] = [
     ("session_id", "ALTER TABLE long_term_facts ADD COLUMN session_id TEXT"),
     ("category", "ALTER TABLE long_term_facts ADD COLUMN category TEXT"),
     ("updated_at", "ALTER TABLE long_term_facts ADD COLUMN updated_at REAL"),
+    ("status", "ALTER TABLE long_term_facts ADD COLUMN status TEXT"),
+    ("source", "ALTER TABLE long_term_facts ADD COLUMN source TEXT"),
+    ("confidence", "ALTER TABLE long_term_facts ADD COLUMN confidence REAL"),
+    ("attribute_key", "ALTER TABLE long_term_facts ADD COLUMN attribute_key TEXT"),
+    ("superseded_by", "ALTER TABLE long_term_facts ADD COLUMN superseded_by INTEGER"),
+    ("version", "ALTER TABLE long_term_facts ADD COLUMN version INTEGER"),
 ]
+
+# Facts with these statuses are hidden from normal retrieval.
+_INACTIVE_STATUSES = ("superseded", "deleted")
+# SQL fragment: a fact is "active" when its status is NULL (pre-upgrade) or
+# the literal 'active'.
+_ACTIVE_CLAUSE = "(status IS NULL OR status = 'active')"
 
 
 class MemoryStore:
@@ -115,17 +140,88 @@ class MemoryStore:
         conversation_id: str | None = None,
         session_id: str | None = None,
         category: str = DEFAULT_CATEGORY,
+        source: str | None = None,
+        confidence: float | None = None,
+        attribute_key: str | None = None,
+        version: int = 1,
     ) -> int:
         now = time.time()
         cur = self._conn.execute(
             "INSERT INTO long_term_facts "
             "(conversation_id, content, importance, created_at, last_accessed_at, "
-            " access_count, session_id, category, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)",
-            (conversation_id, content, importance, now, now, session_id, category, now),
+            " access_count, session_id, category, updated_at, "
+            " status, source, confidence, attribute_key, version) "
+            "VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 'active', ?, ?, ?, ?)",
+            (conversation_id, content, importance, now, now, session_id, category, now,
+             source, confidence, attribute_key, version),
         )
         self._conn.commit()
         return int(cur.lastrowid)
+
+    def supersede_fact(self, old_id: int, new_id: int) -> None:
+        """Mark `old_id` as superseded by `new_id` (last-writer-wins). The
+        old fact is preserved for history but excluded from normal
+        retrieval."""
+        self._conn.execute(
+            "UPDATE long_term_facts SET status = 'superseded', superseded_by = ?, updated_at = ? "
+            "WHERE id = ?",
+            (new_id, time.time(), old_id),
+        )
+        self._conn.commit()
+
+    def set_fact_status(self, fact_id: int, status: str) -> bool:
+        cur = self._conn.execute(
+            "UPDATE long_term_facts SET status = ?, updated_at = ? WHERE id = ?",
+            (status, time.time(), fact_id),
+        )
+        self._conn.commit()
+        return cur.rowcount > 0
+
+    def get_active_facts_by_attribute(
+        self, attribute_key: str, session_id: str | None = None
+    ) -> list[dict]:
+        """Active facts for an attribute key (usually 0 or 1 — the current
+        value). Scoped to the session plus global facts."""
+        if session_id is None:
+            rows = self._conn.execute(
+                f"SELECT * FROM long_term_facts WHERE attribute_key = ? AND {_ACTIVE_CLAUSE}",
+                (attribute_key,),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                f"SELECT * FROM long_term_facts WHERE attribute_key = ? AND {_ACTIVE_CLAUSE} "
+                "AND (session_id = ? OR session_id IS NULL)",
+                (attribute_key, session_id),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_attribute_history(
+        self, attribute_key: str, session_id: str | None = None
+    ) -> list[dict]:
+        """Every value ever stored for an attribute (active + superseded +
+        deleted), newest version first — for history/audit queries."""
+        rows = self._conn.execute(
+            "SELECT * FROM long_term_facts WHERE attribute_key = ? "
+            "ORDER BY version DESC, created_at DESC",
+            (attribute_key,),
+        ).fetchall()
+        facts = [dict(r) for r in rows]
+        if session_id is not None:
+            facts = [f for f in facts if f["session_id"] in (session_id, None)]
+        return facts
+
+    def max_attribute_version(self, attribute_key: str) -> int:
+        row = self._conn.execute(
+            "SELECT MAX(version) AS v FROM long_term_facts WHERE attribute_key = ?",
+            (attribute_key,),
+        ).fetchone()
+        return int(row["v"]) if row and row["v"] is not None else 0
+
+    def count_by_status(self) -> dict[str, int]:
+        rows = self._conn.execute(
+            "SELECT COALESCE(status, 'active') AS s, COUNT(*) AS n FROM long_term_facts GROUP BY s"
+        ).fetchall()
+        return {r["s"]: r["n"] for r in rows}
 
     def touch_fact(self, fact_id: int) -> None:
         self._conn.execute(
@@ -167,22 +263,32 @@ class MemoryStore:
         self._conn.commit()
         return cur.rowcount > 0
 
-    def get_all_facts(self, session_id: str | None = None, only_global: bool = False) -> list[dict]:
+    def get_all_facts(
+        self, session_id: str | None = None, only_global: bool = False, include_inactive: bool = False
+    ) -> list[dict]:
         """`session_id=None, only_global=False` (the default): every fact,
         regardless of session — the right default for a single-user app.
         `session_id=<id>`: that session's facts plus global (session_id
         IS NULL) ones. `only_global=True`: only session_id IS NULL facts,
         ignoring `session_id`.
+
+        Superseded and deleted facts are excluded unless
+        `include_inactive=True` — so normal retrieval only ever sees the
+        current value of a fact, never an outdated or forgotten one.
         """
+        active = "" if include_inactive else f" AND {_ACTIVE_CLAUSE}"
+        active_where = "" if include_inactive else f" WHERE {_ACTIVE_CLAUSE}"
         if only_global:
             rows = self._conn.execute(
-                "SELECT * FROM long_term_facts WHERE session_id IS NULL"
+                f"SELECT * FROM long_term_facts WHERE session_id IS NULL{active}"
             ).fetchall()
         elif session_id is None:
-            rows = self._conn.execute("SELECT * FROM long_term_facts").fetchall()
+            rows = self._conn.execute(
+                f"SELECT * FROM long_term_facts{active_where}"
+            ).fetchall()
         else:
             rows = self._conn.execute(
-                "SELECT * FROM long_term_facts WHERE session_id = ? OR session_id IS NULL",
+                f"SELECT * FROM long_term_facts WHERE (session_id = ? OR session_id IS NULL){active}",
                 (session_id,),
             ).fetchall()
         return [dict(r) for r in rows]

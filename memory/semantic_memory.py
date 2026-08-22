@@ -70,6 +70,10 @@ class SemanticMemory:
         importance: float = 0.5,
         session_id: str | None = None,
         conversation_id: str | None = None,
+        source: str | None = None,
+        confidence: float | None = None,
+        attribute_key: str | None = None,
+        version: int = 1,
     ) -> int:
         fact_id = self.long_term.add_memory(
             content,
@@ -77,6 +81,10 @@ class SemanticMemory:
             importance=importance,
             session_id=session_id,
             conversation_id=conversation_id,
+            source=source,
+            confidence=confidence,
+            attribute_key=attribute_key,
+            version=version,
         )
         vec = self.embedder.embed(content)
         self.index.add(vec, np.array([fact_id]))

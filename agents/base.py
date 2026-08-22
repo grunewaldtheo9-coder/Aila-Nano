@@ -105,6 +105,7 @@ class Agent:
         allow_freeform: bool = True,
         translator=None,  # translation.Translator | None
         emit_status=None,  # Callable[[str], None] | None
+        conversation_manager=None,  # conversation.ConversationManager | None
     ):
         self.model = model.to(device)
         self.model.eval()
@@ -113,6 +114,10 @@ class Agent:
         self.knowledge = knowledge
         self.device = device
         self.router = router
+        # The canonical context assembler (summary + relevant memories +
+        # recent turns). When present it is the source of the generation
+        # context; without it the agent falls back to memory.build_context.
+        self.conversation_manager = conversation_manager
         # Optional en<->pt translation, used only as a *fallback* — see
         # `_resolve_route`. None (or an unavailable translator) simply
         # means Portuguese questions are handled natively only.
@@ -164,6 +169,13 @@ class Agent:
         # state precisely when no relevant memory exists (goal: never
         # invent one). Bracketed [MEMORY]/[/MEMORY] tags keep the injected
         # facts visually distinct from the rest of the system prompt.
+        # A conversation summary of older turns (from ConversationManager)
+        # keeps a long conversation coherent without replaying every raw
+        # turn. Same bracketed-data framing as [MEMORY] — background context,
+        # not instructions.
+        if memory_ctx and getattr(memory_ctx, "summary", ""):
+            prompt = f"{prompt}\n\n[SUMMARY]\n{memory_ctx.summary}\n[/SUMMARY]"
+
         if memory_ctx and memory_ctx.relevant_facts:
             facts = "\n".join(f"- {f['content']}" for f in memory_ctx.relevant_facts)
             prompt = f"{prompt}\n\n[MEMORY]\n{facts}\n[/MEMORY]"
@@ -231,14 +243,28 @@ class Agent:
         context, then the prompt ids, then the input tensor. Returns
         (input_tensor, prompt_ids).
         """
-        memory_ctx = (
-            self.memory.build_context(conversation_id, query=user_message)
-            if self.memory
-            else None
-        )
+        memory_ctx = self._assemble_context(conversation_id, user_message)
         prompt_ids = self._build_prompt_ids(user_message, memory_ctx, web_snippets=web_snippets)
         input_tensor = torch.tensor([prompt_ids], dtype=torch.long, device=self.device)
         return input_tensor, prompt_ids
+
+    def _assemble_context(self, conversation_id: str, user_message: str) -> MemoryContext | None:
+        """Build the generation context. Prefers the ConversationManager
+        (summary of older turns + relevant memories) so a long conversation
+        stays coherent; falls back to the memory manager's context, then to
+        nothing. This is the single canonical context source for generation."""
+        if self.conversation_manager is not None:
+            bundle = self.conversation_manager.assemble(
+                conversation_id, user_message, max_facts=self.memory.max_facts if self.memory else 3
+            )
+            return MemoryContext(
+                history=bundle.recent,
+                relevant_facts=bundle.relevant_facts,
+                summary=bundle.summary,
+            )
+        if self.memory:
+            return self.memory.build_context(conversation_id, query=user_message)
+        return None
 
     def _remember_turn(self, conversation_id: str, user_message: str, reply: str) -> None:
         if self.memory:
@@ -296,12 +322,33 @@ class Agent:
 
         if command.kind == "remember":
             category = guess_category(command.content)
-            self.memory.add_memory(command.content, category=category, importance=0.8)
+            # A "/remember" or "remember that ..." is the user explicitly
+            # asking Aila to keep this — highest confidence and source. If it
+            # names a versioned attribute, add_memory supersedes the old value.
+            self.memory.add_memory(
+                command.content,
+                category=category,
+                importance=0.8,
+                source="explicit_user_request",
+                confidence=0.95,
+            )
             if pt:
                 return f"Entendi — vou lembrar que {command.content}."
             return f"Got it — I'll remember that {command.content}."
 
         if command.kind == "forget":
+            # First: "forget my favorite game" names an attribute with no
+            # value — deactivate its current value so it stops being returned.
+            from memory.attributes import extract_attribute_key
+
+            key = extract_attribute_key(command.content)
+            if key is not None and hasattr(self.memory, "forget_attribute"):
+                if self.memory.current_attribute(key) is not None:
+                    self.memory.forget_attribute(key)
+                    if pt:
+                        return "Pronto — esqueci isso."
+                    return "Done — I've forgotten that."
+
             facts = self.memory.all_memories()
             scored = sorted(
                 facts, key=lambda f: lexical_overlap_score(command.content, f["content"]), reverse=True
