@@ -103,7 +103,28 @@ news, today's weather, current prices) trigger one.
   malformed records and duplicates; exits non-zero to gate CI/training.
 - **Training path** (`finetuning/chat_dataset.py` + `--format chat`).
 
-### Growing the conversational dataset
+## Conversation, memory & tools architecture
+
+Model-agnostic layers (they work with the 20M model now and a future 50M
+one — nothing branches on model size; the architecture is read from the
+checkpoint):
+
+- **`ConversationManager`** (`conversation/manager.py`) — owns conversation
+  *shape*: active-topic extraction, an extractive rule-based summary of
+  older turns (keeps project facts, drops filler), and prioritised context
+  assembly (summary + relevant memories). Rule-based on purpose — a trained
+  50M model can replace these methods without changing the interface.
+- **`ToolManager`** (`tools/manager.py`) — one contract for every tool
+  (`Tool.run` → structured `ToolResult`) with error isolation: an unknown
+  tool or any failure (web timeout, memory error) becomes
+  `ToolResult(success=False, error=...)` instead of crashing the chat loop.
+  Ships `WebSearchTool` and `MemorySearchTool`.
+- **`MemoryManager`** (existing) — relevance-gated retrieval, categories,
+  dedup, and natural-language `/remember`/`/forget` commands.
+- CLI: `/context` (turns, summary, active topics), `/stats`, `/model`,
+  `/debug`.
+
+## Growing the conversational dataset
 
 The datasets are built by a template + slot-filling generator, so they
 scale without hand-writing:
