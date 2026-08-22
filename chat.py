@@ -48,6 +48,8 @@ Commands:
   /learn <path>      index a local .txt/.md file into the knowledge base
   /study <topic>     look a topic up now and remember it forever
   /knows             how much Aila has learned so far
+  /model             show the loaded model's size and architecture
+  /debug             toggle debug details (memory/routing/model)
   /serper            add or replace your Serper key (search the whole web)
   /support           how to report a problem to Aila Company Solutions
   /feedback <text>   same, with your message included
@@ -236,6 +238,29 @@ def handle_command(engine: AilaEngine, command: str, state: dict) -> bool:
     elif cmd == "/serper":
         offer_serper_setup(engine, force=True)
 
+    elif cmd == "/model":
+        meta = getattr(engine, "_checkpoint_metadata", None)
+        if meta:
+            print(
+                f"Model: {meta['model_name']} {meta['model_size']} "
+                f"({meta['parameters']:,} params)"
+            )
+            print(
+                f"  d_model={meta['d_model']} layers={meta['layers']} "
+                f"heads={meta['heads']} ffn={meta['ffn']} ctx={meta['context_length']}"
+            )
+        else:
+            cfg = engine.model.cfg
+            trained = "trained" if engine.is_trained else "UNTRAINED"
+            print(
+                f"Model: aila_nano ({trained}) — d_model={cfg.d_model} "
+                f"layers={cfg.n_layers} heads={cfg.n_heads} ctx={cfg.max_seq_len}"
+            )
+
+    elif cmd == "/debug":
+        state["debug"] = not state.get("debug", False)
+        print(f"Debug mode {'on' if state['debug'] else 'off'}.")
+
     elif cmd in ("/support", "/feedback"):
         print(support_message(engine, VERSION, note=arg))
 
@@ -255,15 +280,37 @@ def handle_command(engine: AilaEngine, command: str, state: dict) -> bool:
     return True
 
 
-def main() -> int:
+def _parse_cli_args(argv: list[str] | None = None):
+    import argparse
+
+    p = argparse.ArgumentParser(description="Chat with Aila Nano.")
+    p.add_argument(
+        "--checkpoint",
+        default=None,
+        help="Path to a model checkpoint (e.g. checkpoints/chat_50m/best.pt). "
+        "The architecture is read from the checkpoint itself, so a future 50M "
+        "checkpoint loads with no code changes.",
+    )
+    p.add_argument("--debug", action="store_true", help="Show memory/routing/model details each turn.")
+    return p.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
     load_env()  # .env (gitignored) → os.environ; real env vars always win
-    print_banner(device=EngineSettings().resolved_device())
+    args = _parse_cli_args(argv)
+
+    # A --checkpoint overrides the configured path; the engine auto-detects
+    # the architecture from the checkpoint's own stored config.
+    settings = (
+        EngineSettings(checkpoint_path=args.checkpoint) if args.checkpoint else EngineSettings()
+    )
+    print_banner(device=settings.resolved_device())
 
     def on_progress(msg: str) -> None:
         print(msg)
 
     try:
-        engine = AilaEngine(EngineSettings(), on_progress=on_progress)
+        engine = AilaEngine(settings, on_progress=on_progress)
     except CheckpointNotDownloadedError as e:
         # The single most common install failure. Its raw form is a
         # torch pickling traceback that says nothing useful, so it gets
@@ -334,7 +381,11 @@ def main() -> int:
 
     print("\nReady.\n")
 
-    state = {"conversation_id": new_conversation_id(), "agent": engine.settings.default_agent}
+    state = {
+        "conversation_id": new_conversation_id(),
+        "agent": engine.settings.default_agent,
+        "debug": args.debug,
+    }
     if state["agent"] not in engine.available_agents():
         state["agent"] = engine.available_agents()[0]
 

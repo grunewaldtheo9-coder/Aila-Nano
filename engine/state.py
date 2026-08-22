@@ -202,13 +202,21 @@ class AilaEngine:
         return AilaTokenizer.load(self.settings.tokenizer_path)
 
     def _load_model(self) -> tuple[AilaNanoGPT, str | None]:
+        from training.checkpoint import validate_checkpoint_compatibility
+
         for path in (self.settings.checkpoint_path, self.settings.fallback_checkpoint_path):
             if path and Path(path).exists():
                 ckpt = load_checkpoint(path, map_location=self.device)
+                # Architecture auto-detects from the checkpoint's own config
+                # (so a 20M or a future 50M checkpoint each load correctly),
+                # but the vocab must match this tokenizer or the model would
+                # emit undecodable ids — check it up front with a clear error.
+                validate_checkpoint_compatibility(ckpt, self.tokenizer.vocab_size)
                 model = AilaNanoGPT(GPTConfig.from_dict(ckpt["config"]))
                 model.load_state_dict(ckpt["model_state_dict"])
                 model.to(self.device)
                 model.eval()
+                self._checkpoint_metadata = ckpt.get("metadata")
                 logger.info("Loaded model from checkpoint: %s", path)
                 return model, path
 

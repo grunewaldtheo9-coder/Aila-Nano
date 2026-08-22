@@ -20,6 +20,27 @@ from model.transformer import AilaNanoGPT
 logger = logging.getLogger(__name__)
 
 
+def checkpoint_metadata(model: AilaNanoGPT) -> dict[str, Any]:
+    """Human-facing description of a model's architecture, stored alongside
+    the weights so a checkpoint is self-describing (spec §7 checkpoint
+    metadata). The authoritative architecture is still `config` — this is
+    a convenience summary for reports and the CLI /model command."""
+    cfg = model.cfg
+    n_params = sum(p.numel() for p in model.parameters())
+    return {
+        "model_name": "aila_nano",
+        "model_size": f"{round(n_params / 1_000_000)}M",
+        "parameters": n_params,
+        "d_model": cfg.d_model,
+        "layers": cfg.n_layers,
+        "heads": cfg.n_heads,
+        "kv_heads": cfg.n_kv_heads,
+        "ffn": cfg.mlp_hidden_dim,
+        "context_length": cfg.max_seq_len,
+        "vocab_size": cfg.vocab_size,
+    }
+
+
 def save_checkpoint(
     path: str,
     model: AilaNanoGPT,
@@ -33,6 +54,7 @@ def save_checkpoint(
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict() if optimizer is not None else None,
         "config": model.cfg.to_dict(),
+        "metadata": checkpoint_metadata(model),
         "step": step,
         "best_val_loss": best_val_loss,
         "extra": extra or {},
@@ -105,6 +127,56 @@ def load_model_from_checkpoint(path: str, map_location: str = "cpu") -> AilaNano
     model = AilaNanoGPT(cfg)
     model.load_state_dict(ckpt["model_state_dict"])
     return model
+
+
+class CheckpointIncompatibleError(RuntimeError):
+    """The checkpoint's architecture doesn't match what it's being loaded
+    into — most importantly a vocab size that disagrees with the tokenizer,
+    which would let the model emit token ids the tokenizer can't decode.
+    Raised with a clear message instead of a cryptic state_dict shape error
+    (spec §7 checkpoint validation)."""
+
+
+def describe_checkpoint(ckpt: dict[str, Any]) -> str:
+    """One-line summary of a loaded checkpoint's architecture, from its
+    stored metadata (falling back to `config` for older checkpoints that
+    predate the metadata field)."""
+    meta = ckpt.get("metadata")
+    if not meta:
+        cfg = ckpt.get("config", {})
+        n = "?"
+        return (
+            f"aila_nano d_model={cfg.get('d_model')} layers={cfg.get('n_layers')} "
+            f"heads={cfg.get('n_heads')} ctx={cfg.get('max_seq_len')} params={n}"
+        )
+    return (
+        f"{meta['model_name']} {meta['model_size']} "
+        f"({meta['parameters']:,} params) — d_model={meta['d_model']} "
+        f"layers={meta['layers']} heads={meta['heads']} ffn={meta['ffn']} "
+        f"ctx={meta['context_length']}"
+    )
+
+
+def validate_checkpoint_compatibility(ckpt: dict[str, Any], tokenizer_vocab_size: int) -> None:
+    """Raise CheckpointIncompatibleError if `ckpt` can't be used with a
+    tokenizer of `tokenizer_vocab_size`. Checks the config is present and
+    its vocab matches; the model constructor + load_state_dict then catch
+    any remaining tensor-shape mismatch. This runs *before* loading so the
+    failure is explained rather than a raw pickling/shape traceback."""
+    cfg = ckpt.get("config")
+    if not isinstance(cfg, dict):
+        raise CheckpointIncompatibleError(
+            "Checkpoint has no architecture config — it may be corrupted or from "
+            "an incompatible version."
+        )
+    ckpt_vocab = cfg.get("vocab_size")
+    if ckpt_vocab != tokenizer_vocab_size:
+        raise CheckpointIncompatibleError(
+            f"Checkpoint was trained with vocab_size={ckpt_vocab}, but the current "
+            f"tokenizer has {tokenizer_vocab_size}. Use the tokenizer this "
+            f"checkpoint was trained with, or the matching checkpoint for this "
+            f"tokenizer — loading anyway would produce undecodable output."
+        )
 
 
 def restore_training_state(

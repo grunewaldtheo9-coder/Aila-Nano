@@ -173,7 +173,6 @@ def _templates(lang: str):
     """Yield (category, requires_memory, requires_web, builder) tuples. Each
     builder(rng, slots) returns a list of (role, content) turns (excluding
     the system turn)."""
-    S = SLOTS_EN if lang == "en" else SLOTS_PT
     EXPL = EXPLANATIONS_EN if lang == "en" else EXPLANATIONS_PT
     SQ = SEARCH_QUESTIONS_EN if lang == "en" else SEARCH_QUESTIONS_PT
     SR = SEARCH_REPLIES_EN if lang == "en" else SEARCH_REPLIES_PT
@@ -191,8 +190,6 @@ def _templates(lang: str):
     proj_start = "I'm building a {project}." if lang == "en" else "Estou construindo um {project}."
     proj_ask = ["That's awesome! What do you want it to do?", "Cool! What's the goal for it?"] if lang == "en" \
         else ["Que legal! O que você quer que ele faça?", "Massa! Qual é o objetivo dele?"]
-    proj_ctrl_ask = ["Nice! Are you using a microcontroller?", "Cool — what are you building it with?"] if lang == "en" \
-        else ["Legal! Você vai usar um microcontrolador?", "Massa — com o que você vai construir?"]
     ctrl_reply = "I'm using a {controller}." if lang == "en" else "Vou usar um {controller}."
     ctrl_ack = ["Good pick — that gives you a lot to work with. Adding {feature}?", "Nice! Are you adding {feature}?"] if lang == "en" \
         else ["Boa — dá pra fazer bastante coisa. Vai adicionar {feature}?", "Legal! Vai colocar {feature}?"]
