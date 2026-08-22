@@ -119,8 +119,20 @@ checkpoint):
   tool or any failure (web timeout, memory error) becomes
   `ToolResult(success=False, error=...)` instead of crashing the chat loop.
   Ships `WebSearchTool` and `MemorySearchTool`.
-- **`MemoryManager`** (existing) — relevance-gated retrieval, categories,
-  dedup, and natural-language `/remember`/`/forget` commands.
+- **`MemoryManager`** (versioned) — relevance-gated retrieval, categories,
+  dedup, natural-language `/remember`/`/forget`, **and last-writer-wins
+  correction**: a statement like "my favorite game is Zelda" supersedes a
+  previous "…Minecraft" (each memory carries `status`, `version`, `source`,
+  `confidence`, `attribute_key`, `superseded_by`). Retrieval returns only
+  the current value; superseded and deleted values are kept for history
+  (`attribute_history`) but never surfaced. `/forget my favorite game`
+  deactivates that attribute. `memory_audit()` counts active/superseded/
+  deleted. Verified live on the 20M model: "what's my favorite game?" →
+  Minecraft, then → Zelda after a correction.
+- **Live context**: `ConversationManager.assemble()` is the canonical
+  context source feeding the model prompt — the agent injects a `[SUMMARY]`
+  block plus the current (corrected) memories. Raw turns are not replayed
+  into the 20M prompt (it is single-turn); a trained 50M model can.
 - CLI: `/context` (turns, summary, active topics), `/stats`, `/model`,
   `/debug`.
 
