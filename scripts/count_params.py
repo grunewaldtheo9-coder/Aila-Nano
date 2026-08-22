@@ -17,11 +17,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from model.config import GPTConfig, nano_10m, nano_20m
+from model.config import GPTConfig, nano_10m, nano_20m, nano_50m
 from model.transformer import AilaNanoGPT
 from model.utils import count_parameters, format_param_count, parameter_breakdown
 
-PRESETS = {"nano_10m": (nano_10m, 10_900_000), "nano_20m": (nano_20m, 20_000_000)}
+PRESETS = {
+    "nano_10m": (nano_10m, 10_900_000),
+    "nano_20m": (nano_20m, 20_000_000),
+    "nano_50m": (nano_50m, 50_000_000),
+}
+
+# Presets that carry a documented acceptance range, checked at the end of a
+# run so the count is verified, not just printed.
+TARGET_RANGES = {"nano_50m": (45_000_000, 55_000_000)}
 
 
 def main():
@@ -74,6 +82,22 @@ def main():
     print(f"Total (excluding embeddings):  {non_embed:>12,}  ({format_param_count(non_embed)})")
     print(f"Target: {format_param_count(target)}  |  Delta: {(total - target) / target:+.2%}")
 
+    # Verify (don't just print) against a documented acceptance range.
+    low, high = TARGET_RANGES.get(args.preset, (None, None))
+    if low is not None:
+        if low <= total <= high:
+            print(
+                f"OK: within the {format_param_count(low)}-{format_param_count(high)} "
+                f"target range."
+            )
+        else:
+            print(
+                f"WARNING: {total:,} is OUTSIDE the "
+                f"{format_param_count(low)}-{format_param_count(high)} target range."
+            )
+            return 1
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

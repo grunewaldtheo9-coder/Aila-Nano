@@ -52,6 +52,7 @@ from memory.lexical import GENERIC_QUESTION_TERMS, tokenize
 from memory.phrasing import memory_to_answer
 from tools.calculator import try_calculate
 from tools.identity import match_identity_question
+from tools.personality import match_personality_question
 from tools.smalltalk import match_smalltalk
 from webresearch.pipeline import ResearchPipeline, detect_language
 
@@ -300,6 +301,16 @@ class ToolRouter:
         if identity is not None:
             intent, answer = identity
             return RouteResult(direct_reply=answer, tool_used=f"identity:{intent}")
+
+        # 4b. Personality and preferences ("Do you like games?", "What's
+        #     your favourite?", "Are you human?"). Answered from an explicit
+        #     personality config so Aila is consistent and — crucially —
+        #     does NOT reach for a web search on an opinion question. Runs
+        #     before knowledge/web for the same reason identity does.
+        personality = match_personality_question(message, language=language)
+        if personality is not None:
+            intent, answer = personality
+            return RouteResult(direct_reply=answer, tool_used=f"personality:{intent}")
 
         # 5. Stored global knowledge, in the language the question was
         #    asked in (a Portuguese question must not be answered with the

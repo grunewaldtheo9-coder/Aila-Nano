@@ -117,6 +117,42 @@ def nano_20m() -> GPTConfig:
     )
 
 
+def nano_50m() -> GPTConfig:
+    """The ~50M-parameter conversational preset (Aila Nano 50M / v2).
+
+    Measured programmatically (sum of p.numel() with tied embeddings):
+    51,393,024 parameters — inside the 45M-55M target. Sized against
+    nearby candidates with scripts/count_params.py (480d x 16L = 45.1M,
+    512d x 11L = 47.5M, 512d x 12L x mult3.75 = 49.0M); 512d x 12L with a
+    4x SwiGLU expansion lands on a clean 2048 feed-forward width and the
+    spec's conceptual target (d_model~512, ~12 layers, 8 heads, ffn~2048,
+    context 1024).
+
+    Wider than nano_20m (d_model 320 -> 512, head_dim 40 -> 64) and with a
+    fuller feed-forward (mult 2.72 -> 4.0). Context length doubles to 1024
+    so multi-turn conversations fit. Same 8-query / 4-KV grouped-query
+    attention and tied embeddings as the smaller presets, so the training,
+    inference, and checkpoint code all work unchanged.
+
+    NOTE: this is the *architecture*. Real conversational ability requires
+    actually pretraining + fine-tuning these weights on a GPU — an
+    untrained 50M net is noise. The 20M trained checkpoint remains the
+    shipped model until a 50M training run is done.
+    """
+    return GPTConfig(
+        vocab_size=8192,
+        max_seq_len=1024,
+        n_layers=12,
+        d_model=512,
+        n_heads=8,
+        n_kv_heads=4,
+        mlp_hidden_mult=4.0,
+        dropout=0.1,
+        tie_embeddings=True,
+        bias=False,
+    )
+
+
 def tiny_debug() -> GPTConfig:
     """A tiny config for fast unit tests / CI (not for real training)."""
     return GPTConfig(

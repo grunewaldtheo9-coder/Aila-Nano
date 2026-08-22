@@ -197,7 +197,10 @@ _INTENT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         "capabilities",
         re.compile(
             r"\bwhat\s+can\s+you\s+(?:do|help)\b"
-            r"|\bwhat\s+do\s+you\s+do\b"
+            # "What do you do?" is a capabilities question, but "What do you
+            # do when you don't know?" is about how Aila handles uncertainty
+            # (a personality question) — don't swallow it here.
+            r"|\bwhat\s+do\s+you\s+do\b(?!\s+when\b)"
             r"|\bwhat\s+are\s+you\s+able\s+to\s+do\b"
             r"|\bhow\s+can\s+you\s+help\b"
             r"|\bo\s+que\s+voc[eê]\s+(?:faz|pode\s+fazer|consegue\s+fazer|sabe\s+fazer)\b"
