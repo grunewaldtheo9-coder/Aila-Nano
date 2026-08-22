@@ -103,6 +103,41 @@ news, today's weather, current prices) trigger one.
   malformed records and duplicates; exits non-zero to gate CI/training.
 - **Training path** (`finetuning/chat_dataset.py` + `--format chat`).
 
+### Growing the conversational dataset
+
+The datasets are built by a template + slot-filling generator, so they
+scale without hand-writing:
+
+```bash
+# Generate (deterministic, deduplicated) — currently ~4,900 distinct
+# conversations across 14 categories, English + Portuguese:
+python datasets/scripts/generate_conversations.py --count 8000 \
+    --out datasets/conversational/generated/generated.jsonl
+
+# Validate everything and print real statistics:
+python datasets/scripts/validate_conversations.py "datasets/conversational/**/*.jsonl" --stats
+
+# Split into unseen train / validation sets:
+python datasets/scripts/split_conversations.py \
+    "datasets/conversational/**/*.jsonl" --out-dir datasets/conversational/split
+```
+
+Add templates and slot fillers in `generate_conversations.py` to grow
+toward tens of thousands — no other code changes needed.
+
+### Loading a checkpoint (20M now, 50M later)
+
+Checkpoints are self-describing (they store their architecture config and
+metadata), so the CLI loads whichever you point it at — no source edits:
+
+```bash
+python chat.py                                        # the shipped 20M model
+python chat.py --checkpoint checkpoints/chat_50m/best.pt   # a future 50M model
+```
+
+A vocab mismatch fails with a clear message rather than a shape error, and
+`/model` in chat shows the loaded model's size and architecture.
+
 ### How to actually train the 50M model (on a GPU)
 
 ```bash
