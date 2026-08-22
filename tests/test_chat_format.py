@@ -136,3 +136,37 @@ def test_shipped_conversations_encode_without_dropping(tokenizer):
             conv = ChatConversation.from_dict(json.loads(line))
             result = encode_conversation(conv, tokenizer, max_len=1024)
             assert result is not None
+
+
+# -- the dataset --------------------------------------------------------------
+
+
+def test_chat_dataset_loads_and_skips_invalid(tokenizer, tmp_path):
+    from finetuning.chat_dataset import ChatDataset
+
+    path = tmp_path / "c.jsonl"
+    path.write_text(
+        "\n".join(
+            [
+                json.dumps({"messages": [{"role": "user", "content": "Hi"}, {"role": "assistant", "content": "Hey!"}]}),
+                "{ not json",  # skipped
+                json.dumps({"messages": [{"role": "user", "content": "x"}]}),  # invalid: no assistant
+                json.dumps({"messages": [{"role": "user", "content": "Bye"}, {"role": "assistant", "content": "See you!"}]}),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    ds = ChatDataset(str(path), tokenizer, max_seq_len=1024)
+    assert len(ds) == 2  # only the two valid conversations
+    item = ds[0]
+    # Shifted: input and labels are the same length, and something is trained.
+    assert item["input_ids"].shape == item["labels"].shape
+    assert (item["labels"] != -100).sum().item() > 0
+
+
+def test_chat_dataset_reads_the_shipped_conversations(tokenizer):
+    from finetuning.chat_dataset import ChatDataset
+
+    files = [str(p) for p in CONV_DIR.glob("*.jsonl")]
+    ds = ChatDataset(files, tokenizer, max_seq_len=1024)
+    assert len(ds) >= 50

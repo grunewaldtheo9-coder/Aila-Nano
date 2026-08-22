@@ -68,6 +68,10 @@ class FinetuneConfig:
     # the model + optimizer state).
     keep_last_n_checkpoints: int = 3
     checkpoint_every_n_epochs: int = 1
+    # "instruction" (single-turn instruction/input/output JSONL) or "chat"
+    # (multi-turn {"messages": [...]} JSONL). "chat" trains conversational
+    # behaviour on datasets/conversational/*.jsonl.
+    data_format: str = "instruction"
 
     def resolved_device(self) -> str:
         if self.device != "auto":
@@ -85,7 +89,12 @@ def run_finetune(
     model.to(device)
     torch.manual_seed(cfg.seed)
 
-    full_ds = InstructionDataset(data_paths, tokenizer, max_seq_len=model.cfg.max_seq_len)
+    if getattr(cfg, "data_format", "instruction") == "chat":
+        from finetuning.chat_dataset import ChatDataset
+
+        full_ds = ChatDataset(data_paths, tokenizer, max_seq_len=model.cfg.max_seq_len)
+    else:
+        full_ds = InstructionDataset(data_paths, tokenizer, max_seq_len=model.cfg.max_seq_len)
     n_val = max(1, int(len(full_ds) * cfg.val_fraction)) if len(full_ds) > 1 else 0
     n_train = len(full_ds) - n_val
     if n_val > 0:
@@ -219,6 +228,13 @@ def parse_args():
     p.add_argument("--batch-size", type=int, default=None)
     p.add_argument("--max-lr", type=float, default=None)
     p.add_argument("--device", default=None)
+    p.add_argument(
+        "--format",
+        dest="data_format",
+        choices=["instruction", "chat"],
+        default=None,
+        help="Dataset format: 'instruction' (default) or 'chat' (multi-turn messages)",
+    )
     return p.parse_args()
 
 
@@ -241,7 +257,7 @@ def main():
 
         with open(args.config) as f:
             cfg_kwargs.update(yaml.safe_load(f))
-    for key in ("out_dir", "epochs", "batch_size", "max_lr", "device"):
+    for key in ("out_dir", "epochs", "batch_size", "max_lr", "device", "data_format"):
         val = getattr(args, key)
         if val is not None:
             cfg_kwargs[key] = val
