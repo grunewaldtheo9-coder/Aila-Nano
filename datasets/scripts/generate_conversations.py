@@ -190,7 +190,7 @@ def _templates(lang: str):
     proj_start = "I'm building a {project}." if lang == "en" else "Estou construindo um {project}."
     proj_ask = ["That's awesome! What do you want it to do?", "Cool! What's the goal for it?"] if lang == "en" \
         else ["Que legal! O que você quer que ele faça?", "Massa! Qual é o objetivo dele?"]
-    ctrl_reply = "I'm using a {controller}." if lang == "en" else "Vou usar um {controller}."
+    ctrl_reply = "I'm using an {controller}." if lang == "en" else "Vou usar um {controller}."
     ctrl_ack = ["Good pick — that gives you a lot to work with. Adding {feature}?", "Nice! Are you adding {feature}?"] if lang == "en" \
         else ["Boa — dá pra fazer bastante coisa. Vai adicionar {feature}?", "Legal! Vai colocar {feature}?"]
 
@@ -245,8 +245,8 @@ def _templates(lang: str):
     def correction(rng, s):
         c1, c2 = rng.sample(s["controller"], 2)
         ack1 = "Nice!" if lang == "en" else "Legal!"
-        line2 = f"Actually, I meant a {c2}." if lang == "en" else f"Na verdade, quis dizer um {c2}."
-        got = f"Got it — a {c2}." if lang == "en" else f"Entendi — um {c2}."
+        line2 = f"Actually, I meant an {c2}." if lang == "en" else f"Na verdade, quis dizer um {c2}."
+        got = f"Got it — an {c2}." if lang == "en" else f"Entendi — um {c2}."
         first = _fill(ctrl_reply, rng, s, {"controller": c1})
         return [("user", first), ("assistant", ack1), ("user", line2), ("assistant", got)]
 
@@ -254,6 +254,44 @@ def _templates(lang: str):
         q = "Can you help me fix it?" if lang == "en" else "Você pode me ajudar a consertar isso?"
         a = "Sure! What are you trying to fix?" if lang == "en" else "Claro! O que você está tentando consertar?"
         return [("user", q), ("assistant", a)]
+
+    def project_deep(rng, s):
+        """A long project conversation that accumulates parts and then asks
+        the model to recall them — the core long-context skill."""
+        p = rng.choice(s["project"]); c = rng.choice(s["controller"])
+        n_parts = rng.randint(2, 3)
+        parts = rng.sample(s["feature"], n_parts)
+        turns = [("user", _fill(proj_start, rng, s, {"project": p})), ("assistant", rng.choice(proj_ask))]
+        turns += [("user", _fill(ctrl_reply, rng, s, {"controller": c})), ("assistant", rng.choice(fav_ack))]
+        add_line = "It also has {feature}." if lang == "en" else "Ele também tem {feature}."
+        cool = ["Nice.", "Cool.", "Good idea."] if lang == "en" else ["Legal.", "Massa.", "Boa ideia."]
+        for f in parts:
+            turns.append(("user", _fill(add_line, rng, s, {"feature": f})))
+            turns.append(("assistant", rng.choice(cool)))
+        listed = ", ".join([c] + parts)
+        recall_q = "What parts have I mentioned so far?" if lang == "en" else "Quais partes eu já mencionei?"
+        recall_a = (f"So far: {listed}." if lang == "en" else f"Até agora: {listed}.")
+        turns += [("user", recall_q), ("assistant", recall_a)]
+        return turns
+
+    def correction_recall(rng, s):
+        c1, c2 = rng.sample(s["controller"], 2)
+        line1 = _fill(ctrl_reply, rng, s, {"controller": c1})
+        ack = "Nice!" if lang == "en" else "Legal!"
+        change = f"Actually, I meant an {c2}." if lang == "en" else f"Na verdade, quis dizer um {c2}."
+        got = f"Got it — an {c2}." if lang == "en" else f"Entendi — um {c2}."
+        orig_q = "Which controller did I originally say?" if lang == "en" else "Qual controlador eu disse originalmente?"
+        orig_a = (f"You first said an {c1}, then corrected it to an {c2}."
+                  if lang == "en" else f"Você disse {c1} primeiro, e depois corrigiu para {c2}.")
+        return [("user", line1), ("assistant", ack), ("user", change), ("assistant", got),
+                ("user", orig_q), ("assistant", orig_a)]
+
+    def topic_switch(rng, s):
+        p = rng.choice(s["project"])
+        term = rng.choice(list(EXPL))
+        by_the_way = "By the way, what is {t}?" if lang == "en" else "A propósito, o que é {t}?"
+        return [("user", _fill(proj_start, rng, s, {"project": p})), ("assistant", rng.choice(proj_ask)),
+                ("user", by_the_way.replace("{t}", term)), ("assistant", EXPL[term])]
 
     def goodbye(rng, s):
         if lang == "en":
@@ -273,6 +311,9 @@ def _templates(lang: str):
         ("memory", True, False, memory_fav),
         ("memory", True, False, memory_name),
         ("multi_turn", False, False, project),
+        ("long_context", True, False, project_deep),
+        ("long_context", True, False, correction_recall),
+        ("topic_switch", False, False, topic_switch),
         ("correction", True, False, correction),
         ("ambiguity", False, False, ambiguity),
         ("uncertainty", False, False, uncertainty),

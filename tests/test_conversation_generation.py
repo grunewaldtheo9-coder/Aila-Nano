@@ -95,3 +95,32 @@ def test_split_is_disjoint_and_covers_everything(tmp_path):
     val_keys = {key(r) for r in val_set}
     assert train_keys.isdisjoint(val_keys)  # validation is unseen
     assert len(train_keys) + len(val_keys) == len(loaded)
+
+
+def test_generator_produces_deep_long_context_conversations():
+    records = gen.generate(count=3000, seed=13)
+    deep = [r for r in records if r["category"] == "long_context"]
+    assert deep, "expected long-context conversations"
+    # Real depth: some conversations reach 10+ turns.
+    assert max(r["turns"] for r in records) >= 10
+    # A part-accumulation conversation ends by recalling the parts.
+    recalls = [
+        r for r in deep
+        if "mentioned" in r["messages"][-2]["content"].lower()
+        or "mencionei" in r["messages"][-2]["content"].lower()
+    ]
+    assert recalls
+    r = recalls[0]
+    listed = r["messages"][-1]["content"].lower()
+    # The recall lists several accumulated parts (comma-separated), and each
+    # feature the user stated earlier appears in it.
+    assert "," in listed
+    stated_features = [
+        m["content"] for m in r["messages"]
+        if m["role"] == "user" and ("also has" in m["content"].lower() or "também tem" in m["content"].lower())
+    ]
+    assert stated_features  # parts were accumulated
+    for feat_turn in stated_features:
+        # the noun after "has"/"tem" should be recalled
+        noun = feat_turn.lower().split("has")[-1].split("tem")[-1].strip(" .")
+        assert noun in listed
