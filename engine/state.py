@@ -81,6 +81,11 @@ class AilaEngine:
         self._status_callback = None
         self.knowledge_store, self.knowledge_base, self.router = self._build_knowledge_stack()
         self.translator = self._build_translator()
+        # Owns conversation shape (topics, summary, prioritised context) on
+        # top of the memory stores. Model-agnostic — works with 20M or 50M.
+        from conversation import ConversationManager
+
+        self.conversation_manager = ConversationManager(self.memory)
         self._notify("OK")
 
         self._notify("Loading agents...")

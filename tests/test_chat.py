@@ -187,3 +187,32 @@ def test_slash_remember_is_readable_back(engine, capsys):
     capsys.readouterr()
     chat.handle_command(engine, "/memories", state)
     assert "my name is Theo" in capsys.readouterr().out
+
+
+def test_context_command_reports_turns_and_topics(engine, state, capsys):
+    cid = state["conversation_id"]
+    engine.conversation_manager.add_turn(cid, "user", "I'm building an Arduino robot.")
+    engine.conversation_manager.add_turn(cid, "assistant", "Cool!")
+    assert chat.handle_command(engine, "/context", state) is True
+    out = capsys.readouterr().out
+    assert "Turns:" in out
+    assert "Active topics:" in out
+
+
+def test_stats_command_reports_model_and_memory(engine, state, capsys):
+    assert chat.handle_command(engine, "/stats", state) is True
+    out = capsys.readouterr().out
+    assert "Aila Nano" in out
+    assert "Memories stored:" in out
+
+
+def test_model_command_reports_architecture(engine, state, capsys):
+    assert chat.handle_command(engine, "/model", state) is True
+    out = capsys.readouterr().out
+    assert "d_model=" in out or "params" in out
+
+
+def test_debug_command_toggles(engine, state, capsys):
+    start = state.get("debug", False)
+    chat.handle_command(engine, "/debug", state)
+    assert state["debug"] is (not start)

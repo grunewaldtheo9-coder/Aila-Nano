@@ -49,6 +49,8 @@ Commands:
   /study <topic>     look a topic up now and remember it forever
   /knows             how much Aila has learned so far
   /model             show the loaded model's size and architecture
+  /stats             show model, context, and memory stats
+  /context           show turns, summary, and active topics
   /debug             toggle debug details (memory/routing/model)
   /serper            add or replace your Serper key (search the whole web)
   /support           how to report a problem to Aila Company Solutions
@@ -260,6 +262,31 @@ def handle_command(engine: AilaEngine, command: str, state: dict) -> bool:
     elif cmd == "/debug":
         state["debug"] = not state.get("debug", False)
         print(f"Debug mode {'on' if state['debug'] else 'off'}.")
+
+    elif cmd == "/context":
+        cm = getattr(engine, "conversation_manager", None)
+        if cm is None:
+            print("(no conversation manager)")
+        else:
+            st = cm.state(state["conversation_id"])
+            print(f"Turns: {st.turn_count}")
+            print(f"Summary: {'yes' if st.summary else 'no'}")
+            print("Active topics: " + (", ".join(st.active_topics) if st.active_topics else "(none)"))
+            if state.get("debug") and st.summary:
+                print(f"  {st.summary}")
+
+    elif cmd == "/stats":
+        cfg = engine.model.cfg
+        meta = getattr(engine, "_checkpoint_metadata", None)
+        size = meta["model_size"] if meta else "20M"
+        params = meta["parameters"] if meta else sum(p.numel() for p in engine.model.parameters())
+        st = engine.conversation_manager.state(state["conversation_id"])
+        print(f"Model: Aila Nano {size}  ({params:,} params)")
+        print(f"Checkpoint: {'trained' if engine.is_trained else 'UNTRAINED'}")
+        print(f"Context length: {cfg.max_seq_len}")
+        print(f"Turns this conversation: {st.turn_count}")
+        print(f"Memories stored: {len(engine.memory.all_memories())}")
+        print(f"Known facts: {engine.known_fact_count}")
 
     elif cmd in ("/support", "/feedback"):
         print(support_message(engine, VERSION, note=arg))

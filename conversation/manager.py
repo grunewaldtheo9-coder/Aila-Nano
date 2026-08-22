@@ -1,0 +1,168 @@
+"""ConversationManager: owns the *shape* of a conversation.
+
+The stores already keep the raw turns (memory/conversation_memory.py) and
+the long-term facts (memory/manager.py). This layer sits on top and answers
+the questions a conversational assistant needs but a raw log can't:
+
+- What are we actually talking about? (active topics)
+- What happened earlier that I should keep once the log gets long?
+  (an extractive summary of older turns)
+- What context should the model see this turn, in priority order?
+  (recent turns > summary > relevant memories)
+
+It is deliberately lightweight and CPU-only: topic and summary extraction
+are rule-based over the turn text, not model-generated — the ~20M model
+can't be trusted to summarise reliably, and a future 50M model can replace
+these methods without changing the interface. Nothing here trains or calls
+the model.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+
+# Words that never make a useful "topic" on their own.
+_TOPIC_STOP = frozenset(
+    {
+        "the", "a", "an", "is", "are", "was", "were", "be", "to", "of", "and", "or",
+        "my", "your", "it", "this", "that", "i", "you", "we", "they", "he", "she",
+        "with", "for", "on", "in", "at", "do", "does", "did", "have", "has", "want",
+        "like", "im", " im", "gonna", "just", "really", "also", "about", "what",
+        "how", "why", "when", "where", "which", "who", "can", "could", "would",
+        "um", "uma", "o", "os", "as", "de", "da", "do", "que", "e", "eu", "você",
+        "vou", "estou", "meu", "minha", "um", "para", "com", "por", "na", "no",
+        # conversational filler — never a useful topic
+        "nice", "good", "cool", "great", "hey", "hi", "hello", "yeah", "yes", "no",
+        "ok", "okay", "lots", "kind", "hope", "will", "get", "got", "some", "one",
+        "legal", "massa", "boa", "oi", "olá", "sim", "não", "tudo", "bem",
+    }
+)
+
+# Capitalised product-ish words and known project terms score highest as
+# topics; this small lexicon boosts recall of the things people build/discuss.
+_TOPIC_HINTS = frozenset(
+    {
+        "arduino", "raspberry", "robot", "website", "app", "drone", "sensor",
+        "sensors", "ultrasonic", "oled", "screen", "display", "minecraft", "python",
+        "esp32", "mega", "uno", "camera", "speaker", "motor", "battery", "game",
+        "server", "database", "api", "led", "bluetooth", "wifi",
+    }
+)
+
+_WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9+#-]*")
+
+
+@dataclass
+class ConversationState:
+    conversation_id: str
+    turn_count: int = 0
+    active_topics: list[str] = field(default_factory=list)
+    summary: str = ""
+    recent: list[dict] = field(default_factory=list)  # recent {role,content} turns
+
+
+class ConversationManager:
+    """Wraps the existing memory manager (which owns both the conversation
+    store and the long-term facts). Adds topic tracking, summarisation, and
+    prioritised context assembly."""
+
+    def __init__(self, memory_manager, recent_turns: int = 8, summarize_after: int = 12):
+        self.memory = memory_manager
+        self.recent_turns = recent_turns
+        self.summarize_after = summarize_after
+
+    # -- history ------------------------------------------------------------
+
+    def add_turn(self, conversation_id: str, role: str, content: str) -> None:
+        self.memory.add_turn(conversation_id, role, content)
+
+    def history(self, conversation_id: str, max_turns: int | None = None) -> list[dict]:
+        return self.memory.conversation.render_for_prompt(
+            conversation_id, max_turns=max_turns or 1000
+        )
+
+    # -- topics -------------------------------------------------------------
+
+    def extract_topics(self, turns: list[dict], limit: int = 6) -> list[str]:
+        """Rank content words across the conversation by frequency, boosting
+        known project/tech terms. Returns the most salient distinct topics."""
+        scores: dict[str, float] = {}
+        for t in turns:
+            for raw in _WORD_RE.findall(t.get("content", "").lower()):
+                if len(raw) < 3 or raw in _TOPIC_STOP:
+                    continue
+                weight = 2.0 if raw in _TOPIC_HINTS else 1.0
+                scores[raw] = scores.get(raw, 0.0) + weight
+        ranked = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))
+        return [w for w, _ in ranked[:limit]]
+
+    # -- summarisation ------------------------------------------------------
+
+    def summarize(self, turns: list[dict], max_points: int = 6) -> str:
+        """Extractive, rule-based summary of the *user's* salient statements
+        — the facts, decisions and preferences worth carrying forward. Picks
+        user turns that look declarative (mention a project/preference or a
+        topic hint), most recent first, de-duplicated.
+
+        Not model-generated: this is a deterministic bridge until a trained
+        model can summarise; the interface stays the same either way.
+        """
+        points: list[str] = []
+        seen: set[str] = set()
+        markers = ("i'm building", "im building", "i am building", "my ", "i like",
+                   "i want", "i have", "favorite", "favourite", "estou construindo",
+                   "meu ", "minha ", "eu gosto", "remember", "using", "it uses",
+                   "actually")
+        for t in reversed(turns):
+            if t.get("role") != "user":
+                continue
+            text = t.get("content", "").strip()
+            low = text.lower()
+            salient = any(m in low for m in markers) or any(h in low for h in _TOPIC_HINTS)
+            if not salient:
+                continue
+            key = low
+            if key in seen:
+                continue
+            seen.add(key)
+            points.append(text.rstrip("."))
+            if len(points) >= max_points:
+                break
+        points.reverse()
+        if not points:
+            return ""
+        return "Earlier in this conversation: " + "; ".join(points) + "."
+
+    # -- state + context ----------------------------------------------------
+
+    def state(self, conversation_id: str) -> ConversationState:
+        all_turns = self.history(conversation_id)
+        recent = all_turns[-self.recent_turns:]
+        summary = ""
+        if len(all_turns) > self.summarize_after:
+            older = all_turns[: -self.recent_turns]
+            summary = self.summarize(older)
+        return ConversationState(
+            conversation_id=conversation_id,
+            turn_count=len(all_turns),
+            active_topics=self.extract_topics(all_turns),
+            summary=summary,
+            recent=recent,
+        )
+
+    def build_context_block(self, conversation_id: str, query: str, max_facts: int = 5) -> str:
+        """Assemble a compact, prioritised context string for a prompt:
+        summary of older turns (if any) + relevant long-term memories. Recent
+        turns are passed to the model separately as real chat turns, so they
+        are not duplicated here."""
+        st = self.state(conversation_id)
+        parts: list[str] = []
+        if st.summary:
+            parts.append(st.summary)
+        if self.memory is not None:
+            facts = self.memory.get_relevant_memories(query, k=max_facts)
+            if facts:
+                lines = "\n".join(f"- {f['content']}" for f in facts)
+                parts.append("Relevant memories:\n" + lines)
+        return "\n\n".join(parts)
