@@ -227,6 +227,16 @@ def match_smalltalk(message: str, language: str = "en") -> tuple[str, str] | Non
     if not raw:
         return None
 
+    # A message that is nothing but question marks ("?", "??") is confusion,
+    # not a query — it must not fall through and re-run the previous search.
+    if set(raw) <= {"?"}:
+        reply = (
+            "Desculpa — não entendi. Você pode perguntar de outro jeito?"
+            if language == "pt"
+            else "Sorry — I'm not sure what you mean. Could you ask that a different way?"
+        )
+        return "confusion", reply
+
     phrase = normalize(raw)
     if not phrase or len(phrase.split()) > MAX_SMALLTALK_WORDS:
         return None

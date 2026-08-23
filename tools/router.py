@@ -325,7 +325,12 @@ class ToolRouter:
         #    the exact answer, we should give it. Knowledge lookup is
         #    strict (relevance + a shared distinctive term + high
         #    confidence), so serving it here cannot leak an off-topic fact.
-        if self.knowledge is not None:
+        #    Gated so a bare single word ("poop") does not match a stored
+        #    web answer ("Whats a color of a poop") on one shared word and
+        #    replay the whole article: the message must look like a question
+        #    or carry at least two significant words.
+        knowledge_ok = self._looks_like_question(message) or len(tokenize(query)) >= 2
+        if self.knowledge is not None and knowledge_ok:
             item = self.knowledge.best_direct_answer(query, language=language)
             if item is not None:
                 logger.info("knowledge hit id=%s relevance=%.2f", item.id, item.relevance)
@@ -395,13 +400,18 @@ class ToolRouter:
         )
         if not looks_like_question:
             return message
-        # The message must carry no subject of its own. Without this,
-        # *any* short question-shaped message inherited the previous
-        # topic: after "Who founded Apple?", the replies to "Ok?", "Hi?"
-        # and "Bro?" were all the Apple answer again — which is precisely
-        # the "he repeats things" complaint this project started from.
-        # "When?" and "E quando?" have nothing but an interrogative and
-        # genuinely need the previous turn; "Ok?" does not.
+        # The message must actually be an interrogative follow-up: it has
+        # to contain a follow-up word ("when", "quando", ...). A bare "?"
+        # (or "!" / "...") has none, so it must NOT inherit the previous
+        # topic and re-run its search — that replayed the last answer
+        # verbatim ("poop" -> the whole feces article, then "?" -> it
+        # again), exactly the "he repeats things" complaint.
+        if not (set(re.findall(r"[a-zà-ÿ]+", message.lower())) & _FOLLOW_UP_WORDS):
+            return message
+        # ...and it must carry no subject of its own beyond that follow-up
+        # word: after "Who founded Apple?", "Ok?"/"Hi?"/"Bro?" must not all
+        # replay the Apple answer. "When?" / "E quando?" have nothing but an
+        # interrogative and genuinely need the previous turn.
         if tokenize(message) - _FOLLOW_UP_WORDS:
             return message
         if not tokenize(previous_user_message):

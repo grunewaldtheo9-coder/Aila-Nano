@@ -716,3 +716,45 @@ def test_apostrophe_less_contractions_reach_the_right_wikipedia_article():
     assert extract_subject("Wheres the Eiffel Tower?") == "Eiffel Tower"
     # The apostrophe form already worked and must keep working.
     assert extract_subject("What's photosynthesis?") == "photosynthesis"
+
+
+# -- live-session replay bug: "poop" then "?" repeated the feces article -----
+
+
+def test_a_bare_question_mark_does_not_replay_the_previous_search(store, kb):
+    """From a real session: after a web answer, typing "?" replayed the whole
+    previous article. A bare "?" is confusion, never a follow-up that re-runs
+    the last search."""
+    kb.remember_answer(
+        "Whats a color of a poop", "Human feces: a long article.",
+        confidence=0.9, verification="corroborated",
+    )
+    router = ToolRouter(knowledge=kb)
+    result = router.route("?", previous_user_message="Whats a color of a poop")
+    assert result.tool_used == "smalltalk:confusion"
+    assert "feces" not in (result.direct_reply or "").lower()
+
+
+def test_a_bare_noun_does_not_match_a_stored_web_article(store, kb):
+    """"poop" matched the stored web answer "Whats a color of a poop" on one
+    shared word and replayed the whole article. A single bare word must not
+    trigger a knowledge hit."""
+    kb.remember_answer(
+        "Whats a color of a poop", "Human feces: a long article.",
+        confidence=0.9, verification="corroborated",
+    )
+    router = ToolRouter(knowledge=kb)
+    result = router.route("poop", previous_user_message="Whats a color of a poop")
+    assert result.tool_used != "knowledge"
+    assert "feces" not in (result.direct_reply or "").lower()
+
+
+def test_real_interrogative_follow_ups_still_expand():
+    router = ToolRouter()
+    # "When?" carries an interrogative and no subject -> inherits the topic.
+    expanded = router._expand_follow_up("When?", "Who founded Apple?")
+    assert expanded != "When?" and "Apple" in expanded
+    # "E quando?" (Portuguese) too.
+    assert "Apple" in router._expand_follow_up("E quando?", "Quem fundou a Apple?")
+    # But a bare "?" does not.
+    assert router._expand_follow_up("?", "Who founded Apple?") == "?"
