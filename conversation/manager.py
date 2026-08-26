@@ -118,12 +118,19 @@ class ConversationManager:
         Not model-generated: this is a deterministic bridge until a trained
         model can summarise; the interface stays the same either way.
         """
+        from memory.attributes import extract_attribute
+
         points: list[str] = []
         seen: set[str] = set()
+        seen_attrs: set[str] = set()
         markers = ("i'm building", "im building", "i am building", "my ", "i like",
                    "i want", "i have", "favorite", "favourite", "estou construindo",
                    "meu ", "minha ", "eu gosto", "remember", "using", "it uses",
                    "actually")
+        # Newest first, so when the user corrected a fact ("actually my
+        # favorite game is Zelda now") the corrected value is seen first and
+        # the earlier one is dropped — the summary must show the *current*
+        # value, not both (spec: corrections in summary).
         for t in reversed(turns):
             if t.get("role") != "user":
                 continue
@@ -135,6 +142,11 @@ class ConversationManager:
             key = low
             if key in seen:
                 continue
+            attr = extract_attribute(text)
+            if attr is not None:
+                if attr[0] in seen_attrs:
+                    continue  # a newer value for this attribute already kept
+                seen_attrs.add(attr[0])
             seen.add(key)
             points.append(text.rstrip("."))
             if len(points) >= max_points:

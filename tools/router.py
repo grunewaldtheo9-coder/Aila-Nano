@@ -328,7 +328,10 @@ class ToolRouter:
         #    Gated so a bare single word ("poop") does not match a stored
         #    web answer ("Whats a color of a poop") on one shared word and
         #    replay the whole article: the message must look like a question
-        #    or carry at least two significant words.
+        #    or carry at least two significant words. (A bare interrogative
+        #    follow-up like "When?" is question-shaped and still resolves
+        #    against the previous turn — that is the intended follow-up
+        #    behaviour, see test_router_resolves_short_follow_up_*.)
         knowledge_ok = self._looks_like_question(message) or len(tokenize(query)) >= 2
         if self.knowledge is not None and knowledge_ok:
             item = self.knowledge.best_direct_answer(query, language=language)

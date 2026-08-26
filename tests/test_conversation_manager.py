@@ -101,3 +101,20 @@ def test_context_block_includes_summary_and_relevant_memories():
     block = cm.build_context_block("c1", query="robot project")
     assert "Relevant memories:" in block
     assert "Arduino robot" in block
+
+
+def test_summary_keeps_only_the_corrected_current_value():
+    """When the user corrects a fact, the summary must show the current
+    value, not both (spec: corrections in summary)."""
+    cm = ConversationManager(_FakeMemory(), recent_turns=2, summarize_after=4)
+    turns = [
+        ("user", "my favorite game is Minecraft"), ("assistant", "Nice!"),
+        ("user", "I like building houses"), ("assistant", "Cool"),
+        ("user", "actually my favorite game is Zelda now"), ("assistant", "Got it"),
+        ("user", "what is my favorite game?"),
+    ]
+    for role, content in turns:
+        cm.add_turn("c1", role, content)
+    summary = cm.state("c1").summary
+    assert "Zelda" in summary
+    assert "Minecraft" not in summary

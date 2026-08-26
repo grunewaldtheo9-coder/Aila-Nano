@@ -758,3 +758,12 @@ def test_real_interrogative_follow_ups_still_expand():
     assert "Apple" in router._expand_follow_up("E quando?", "Quem fundou a Apple?")
     # But a bare "?" does not.
     assert router._expand_follow_up("?", "Who founded Apple?") == "?"
+
+
+def test_real_questions_still_reach_knowledge(store, kb):
+    from knowledge.seed_loader import seed_knowledge_base
+
+    seed_knowledge_base(kb)
+    router = ToolRouter(knowledge=kb)
+    for q in ("What is the capital of France?", "the capital of Japan", "What is RAM?"):
+        assert router.route(q).tool_used == "knowledge", q
