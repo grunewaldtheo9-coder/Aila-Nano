@@ -42,6 +42,14 @@ KNOWLEDGE_TOP_K = 2
 # remove the wrong memory.
 FORGET_MATCH_THRESHOLD = 0.34
 
+# Attribute words that are too generic to identify *which* memory to forget
+# on their own: "forget my favorite movie" must not match "my favorite game"
+# on the shared word "favorite". Treated as generic when checking that a
+# forget request shares a distinctive term with a stored memory.
+_FORGET_GENERIC_TERMS = frozenset(
+    {"favorite", "favourite", "favorito", "favorita", "favoritos", "favoritas"}
+)
+
 # Cap on how many memories "what do you remember about me?" lists at once,
 # so a long-lived install with hundreds of stored facts still gets a
 # readable reply instead of a wall of text.
@@ -340,6 +348,7 @@ class Agent:
             # First: "forget my favorite game" names an attribute with no
             # value — deactivate its current value so it stops being returned.
             from memory.attributes import extract_attribute_key
+            from memory.lexical import GENERIC_QUESTION_TERMS, has_distinctive_overlap
 
             key = extract_attribute_key(command.content)
             if key is not None and hasattr(self.memory, "forget_attribute"):
@@ -349,7 +358,17 @@ class Agent:
                         return "Pronto — esqueci isso."
                     return "Done — I've forgotten that."
 
-            facts = self.memory.all_memories()
+            # Lexical fallback for memories stored without an attribute key.
+            # Require a shared *distinctive* term, treating attribute words
+            # like "favorite" as generic — otherwise "forget my favorite
+            # movie" shares only "favorite" with "my favorite game is Zelda"
+            # and would delete the wrong memory.
+            forget_generic = GENERIC_QUESTION_TERMS | _FORGET_GENERIC_TERMS
+            facts = [
+                f
+                for f in self.memory.all_memories()
+                if has_distinctive_overlap(command.content, f["content"], generic=forget_generic)
+            ]
             scored = sorted(
                 facts, key=lambda f: lexical_overlap_score(command.content, f["content"]), reverse=True
             )

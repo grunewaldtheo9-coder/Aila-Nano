@@ -135,3 +135,16 @@ def test_forget_my_favorite_game_through_the_agent(tiny_model, tokenizer, memory
     reply = agent._handle_memory_command("forget my favorite game")
     assert "forgotten" in reply.lower()
     assert memory.current_attribute("favorite_game") is None
+
+
+def test_forgetting_an_unstored_attribute_does_not_delete_a_different_one(tiny_model, tokenizer, memory):
+    """"forget my favorite movie" shares only the word "favorite" with a
+    stored "favorite game" — it must not delete the game."""
+    from agents.registry import get_agent
+
+    agent = get_agent("general", tiny_model, tokenizer, memory=memory)
+    agent._handle_memory_command("remember that my favorite game is Zelda")
+    reply = agent._handle_memory_command("forget my favorite movie")
+    assert "don't have" in reply.lower() or "forgotten" not in reply.lower()
+    # The game survives.
+    assert memory.current_attribute("favorite_game")["content"].endswith("Zelda")
