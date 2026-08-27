@@ -192,6 +192,16 @@ class ConversationManager:
             active_topics=st.active_topics,
         )
 
+    def resolve_reference(self, conversation_id: str, message: str):
+        """Resolve a short contextual reference ("the second one", "yes")
+        against this conversation's recent turns. Returns a Resolution
+        (kind/value/confidence); kind == "none" means it could not be
+        resolved and the caller should ask rather than guess."""
+        from conversation.reference import resolve_reference as _resolve
+
+        recent = self.history(conversation_id, max_turns=self.recent_turns)
+        return _resolve(message, recent)
+
     def build_context_block(self, conversation_id: str, query: str, max_facts: int = 5) -> str:
         """Assemble a compact, prioritised context string for a prompt:
         summary of older turns (if any) + relevant long-term memories. Recent

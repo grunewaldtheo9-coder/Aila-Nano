@@ -114,6 +114,17 @@ checkpoint):
   older turns (keeps project facts, drops filler), and prioritised context
   assembly (summary + relevant memories). Rule-based on purpose — a trained
   50M model can replace these methods without changing the interface.
+- **`ReferenceResolver`** (`conversation/reference.py`) — resolves short
+  contextual messages against recent turns: list-item ordinals ("the second
+  one", "number 2", "the last one" → the item the assistant listed),
+  affirmations/negations ("yes"/"no"/"exactly"), and "the other one" (only
+  when exactly two options exist). Returns a confidence and, when genuinely
+  ambiguous ("number 9", 3-option "the other one"), resolves to nothing so
+  the caller can ask instead of inventing. Deterministic, English +
+  Portuguese, exposed via `ConversationManager.resolve_reference()`. It is
+  context infrastructure — the resolved value is available to the model
+  prompt; the 20M model still can't compose a free-form comparison from it,
+  but a trained 50M model can.
 - **`ToolManager`** (`tools/manager.py`) — one contract for every tool
   (`Tool.run` → structured `ToolResult`) with error isolation: an unknown
   tool or any failure (web timeout, memory error) becomes
