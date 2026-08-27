@@ -192,15 +192,64 @@ class ConversationManager:
             active_topics=st.active_topics,
         )
 
+    # -- entities & topics (rebuilt from history, so they survive restart) --
+
+    def entity_tracker(self, conversation_id: str):
+        """An EntityTracker replayed over this conversation's history."""
+        from conversation.entities import EntityTracker
+
+        et = EntityTracker()
+        for i, turn in enumerate(self.history(conversation_id)):
+            et.observe(turn.get("content", ""), i)
+        return et
+
+    def active_entities(self, conversation_id: str) -> list:
+        return self.entity_tracker(conversation_id).active_entities()
+
+    def topic_stack(self, conversation_id: str):
+        """A TopicStack replayed over this conversation's user turns. Topic
+        candidates come from the entities named in each message."""
+        from conversation.entities import extract_entities
+        from conversation.topics import TopicStack
+
+        ts = TopicStack()
+        for i, turn in enumerate(self.history(conversation_id)):
+            if turn.get("role") != "user":
+                continue
+            content = turn.get("content", "")
+            candidates = [surface for surface, _c, _t in extract_entities(content)]
+            ts.note(content, i, candidates)
+        return ts
+
     def resolve_reference(self, conversation_id: str, message: str):
-        """Resolve a short contextual reference ("the second one", "yes")
-        against this conversation's recent turns. Returns a Resolution
-        (kind/value/confidence); kind == "none" means it could not be
-        resolved and the caller should ask rather than guess."""
+        """Resolve a short contextual reference against this conversation.
+
+        Tries, in order: an ordinal/list reference or affirmation ("the
+        second one", "yes"), then a pronoun ("it", "isso") against the
+        tracked entities. Returns a Resolution; kind == "none" (with
+        `ambiguous`/`options` set when candidates exist) means it could not
+        be resolved and the caller should ask rather than guess."""
+        from conversation.reference import Resolution
         from conversation.reference import resolve_reference as _resolve
 
         recent = self.history(conversation_id, max_turns=self.recent_turns)
-        return _resolve(message, recent)
+        res = _resolve(message, recent)
+        if res.kind != "none":
+            return res
+
+        # Pronoun fallback via the entity tracker (finds a pronoun inside
+        # the message, e.g. "it" in "why is it better?").
+        er = self.entity_tracker(conversation_id).resolve_in_text(message)
+        if er.entity is not None:
+            conf = "high" if er.confidence >= 0.8 else "medium"
+            return Resolution("entity", er.entity.text, conf, reason="pronoun")
+        if er.ambiguous:
+            return Resolution(
+                "none", None, "low",
+                options=[c.text for c in er.candidates],
+                ambiguous=True, reason=er.reason,
+            )
+        return res
 
     def build_context_block(self, conversation_id: str, query: str, max_facts: int = 5) -> str:
         """Assemble a compact, prioritised context string for a prompt:

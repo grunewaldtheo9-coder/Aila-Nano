@@ -53,10 +53,12 @@ _NUM_LINE = re.compile(r"^\s*(\d+)\s*[.)\-:]\s*(.+?)\s*$")
 
 @dataclass
 class Resolution:
-    kind: str  # "list_item" | "affirmation" | "negation" | "none"
+    kind: str  # "list_item" | "entity" | "affirmation" | "negation" | "none"
     value: str | None = None
     confidence: str = "low"  # "high" | "medium" | "low"
     options: list[str] = field(default_factory=list)  # candidates when ambiguous
+    ambiguous: bool = False  # True when candidates exist but none was chosen
+    reason: str = ""  # why it's unresolved/ambiguous, for a clarification
 
 
 def parse_options(text: str) -> list[str]:
@@ -144,9 +146,9 @@ def resolve_reference(message: str, recent_turns: list[dict]) -> Resolution:
             if 1 <= idx <= len(options):
                 return Resolution("list_item", options[idx - 1], "high", options)
             # asked for an item beyond the list -> ambiguous
-            return Resolution("none", None, "low", options)
+            return Resolution("none", None, "low", options, ambiguous=True, reason="out_of_range")
         # An ordinal with no list to resolve against.
-        return Resolution("none", None, "low")
+        return Resolution("none", None, "low", reason="no_list")
 
     # 2) "the other one" — only unambiguous when exactly two options exist.
     if low in {"the other one", "the other", "o outro", "a outra"}:
@@ -154,7 +156,7 @@ def resolve_reference(message: str, recent_turns: list[dict]) -> Resolution:
         options = parse_options(assistant) if assistant else []
         if len(options) == 2:
             return Resolution("list_item", options[1], "medium", options)
-        return Resolution("none", None, "low", options)
+        return Resolution("none", None, "low", options, ambiguous=bool(options), reason="the_other_needs_two")
 
     # 3) Affirmation / negation — meaningful only as an answer to the
     #    assistant's previous message.

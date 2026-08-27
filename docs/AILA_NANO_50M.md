@@ -114,6 +114,19 @@ checkpoint):
   older turns (keeps project facts, drops filler), and prioritised context
   assembly (summary + relevant memories). Rule-based on purpose — a trained
   50M model can replace these methods without changing the interface.
+- **`EntityTracker`** (`conversation/entities.py`) — tracks the entities a
+  conversation mentions with lightweight semantic types (technology / game /
+  project / proper_noun) and resolves pronouns ("it", "isso") to the single
+  most-recently-mentioned entity — reporting ambiguity (with candidates)
+  when two are equally recent instead of guessing. English + Portuguese.
+- **`TopicStack`** (`conversation/topics.py`) — current / previous / dormant
+  topics. Switches only on an explicit introduction ("let's talk about X")
+  or transition marker ("by the way"), so follow-ups stay put; restores an
+  earlier thread on "back to X" / "voltando para X" / "back to the previous
+  topic". Both are rebuilt from history by `ConversationManager`
+  (`entity_tracker`, `topic_stack`), so they survive a restart, and
+  `resolve_reference` now chains list → ordinal → pronoun (e.g. "the second
+  one" then "why is it better?" → PostgreSQL).
 - **`ReferenceResolver`** (`conversation/reference.py`) — resolves short
   contextual messages against recent turns: list-item ordinals ("the second
   one", "number 2", "the last one" → the item the assistant listed),
