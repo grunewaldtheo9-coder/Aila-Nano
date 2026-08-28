@@ -251,6 +251,79 @@ class ConversationManager:
             )
         return res
 
+    def pending_question(self, conversation_id: str):
+        """A PendingQuestion if the assistant's last turn asked the user to
+        choose or confirm and is still unanswered, else None."""
+        from conversation.pending import detect_pending_question
+
+        history = self.history(conversation_id)
+        for turn in reversed(history):
+            if turn.get("role") == "assistant":
+                return detect_pending_question(turn.get("content", ""))
+            if turn.get("role") == "user":
+                # A user turn after the assistant's question means it's no
+                # longer pending (they already replied).
+                break
+        return None
+
+    def build_conversation_context(self, conversation_id: str, message: str, max_facts: int = 5):
+        """Assemble the full ConversationContext for the *incoming* message
+        (not yet added to history): topic, entities, pending question,
+        resolved reference, intent, summary, and relevant memories."""
+        from conversation.context import ConversationContext, classify_intent
+        from conversation.entities import extract_entities
+        from conversation.pending import resolve_pending
+
+        turn = len(self.history(conversation_id))
+
+        ts = self.topic_stack(conversation_id)
+        candidates = [surface for surface, _c, _t in extract_entities(message)]
+        topic_event = ts.note(message, turn, candidates)
+        current_topic = ts.current.name if ts.current else None
+        topic_history = [t.name for t in ts.dormant]
+
+        et = self.entity_tracker(conversation_id)
+        et.observe(message, turn)
+        active = [e.text for e in et.active_entities()]
+
+        pending = self.pending_question(conversation_id)
+        ref = self.resolve_reference(conversation_id, message)
+        # A pending clarification answers against exactly the options the
+        # assistant offered (clean entity extraction), so it takes priority
+        # over the general reference resolver for this turn.
+        resolved: str | None = None
+        if pending is not None:
+            resolved = resolve_pending(pending, message).resolved
+        if resolved is None and ref.kind in {"list_item", "entity"}:
+            resolved = ref.value
+
+        intent = classify_intent(
+            message,
+            has_pending=pending is not None,
+            topic_event=topic_event,
+            reference_kind=ref.kind,
+        )
+
+        summary = self.state(conversation_id).summary
+        facts = (
+            [f["content"] for f in self.memory.get_relevant_memories(message, k=max_facts)]
+            if self.memory is not None
+            else []
+        )
+
+        return ConversationContext(
+            conversation_id=conversation_id,
+            current_message=message,
+            intent=intent,
+            current_topic=current_topic,
+            topic_history=topic_history,
+            active_entities=active,
+            resolved_reference=resolved,
+            pending_question=pending.text if pending is not None else None,
+            summary=summary,
+            relevant_memories=facts,
+        )
+
     def build_context_block(self, conversation_id: str, query: str, max_facts: int = 5) -> str:
         """Assemble a compact, prioritised context string for a prompt:
         summary of older turns (if any) + relevant long-term memories. Recent

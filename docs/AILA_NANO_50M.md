@@ -138,6 +138,32 @@ checkpoint):
   context infrastructure — the resolved value is available to the model
   prompt; the 20M model still can't compose a free-form comparison from it,
   but a trained 50M model can.
+- **`PendingQuestion`** (`conversation/pending.py`) — when Aila asks the
+  user to choose or confirm ("Which one do you mean, SQLite or
+  PostgreSQL?", "Do you mean PostgreSQL?"), this records the exact options
+  offered and resolves the user's short reply against them: naming an option
+  ("PostgreSQL"), an ordinal ("the second one"), or a bare "yes"/"no" to a
+  single-option proposition. It uses clean entity extraction for the
+  options, so the question's lead-in never leaks in as a choice, and it
+  refuses to guess when a reply can't be tied to an option (reporting the
+  candidates instead). `ConversationManager.pending_question()` finds the
+  still-unanswered assistant question by replaying history. English +
+  Portuguese.
+- **`ConversationContext`** (`conversation/context.py`) — one structured
+  object gathering everything the response layer needs for the current
+  message, in priority order: the classified user intent (correction /
+  clarification_response / continuation / topic_return / topic_switch /
+  greeting / question / statement / …), the current topic and dormant
+  topics, the active entities, the resolved reference, any pending question,
+  the summary, and the relevant memories. `classify_intent()` is
+  context-sensitive — a bare "yes" is an *affirmation* on its own but a
+  *clarification_response* when a question is pending. `render()` emits a
+  compact `[CONTEXT]…[/CONTEXT]` block for a model prompt, dropping empty
+  sections. Assembled by `ConversationManager.build_conversation_context()`,
+  which wires the six components together (a pending answer takes priority
+  over the general reference resolver for that turn). Deterministic and
+  CPU-only — nothing here calls the model; it is context infrastructure a
+  trained 50M model can compose free-form replies from.
 - **`ToolManager`** (`tools/manager.py`) — one contract for every tool
   (`Tool.run` → structured `ToolResult`) with error isolation: an unknown
   tool or any failure (web timeout, memory error) becomes
