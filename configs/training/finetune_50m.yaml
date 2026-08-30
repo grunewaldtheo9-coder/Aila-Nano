@@ -1,10 +1,14 @@
-# Aila Nano 50M instruction / conversation fine-tune (FinetuneConfig schema).
-# Runs after a 50M pretrain checkpoint exists. Same recipe shape that
-# produced the working 20M chat model; checkpoints land in the dedicated
-# 50M location. Use --format chat for the multi-turn conversational data.
+# Aila Nano 50M instruction fine-tune (FinetuneConfig schema).
+# Stage 2: takes the 50M pretrain checkpoint (checkpoints/50m/pretrain/best.pt,
+# val loss 2.2625 on TinyStories) and instruction-tunes it on the SAME proven
+# recipe used for the shipped 20M chat model — Aila identity/company facts,
+# general instructions, and basic Portuguese — so the 50M answers identity
+# and knowledge questions through the router like the 20M does.
 #
-# HONEST CPU NOTE: fine-tuning 50M on CPU is slow but far cheaper than
-# pretraining (small dataset, few epochs). Still a GPU is recommended.
+# CPU run (no GPU here). Small dataset (~166 examples), so many epochs are
+# cheap; best.pt is selected on the held-out val fraction. A clean pretrained
+# checkpoint is kept separately (checkpoints/50m/pretrain) so fine-tuning
+# never destroys the base language capability (spec §6).
 epochs: 40
 batch_size: 4
 max_lr: 3.0e-5
@@ -16,7 +20,8 @@ grad_clip: 1.0
 val_fraction: 0.12
 log_interval: 20
 out_dir: checkpoints/50m/finetune
-device: auto
+device: cpu
 seed: 1337
 keep_last_n_checkpoints: 5
-checkpoint_every_n_epochs: 3
+checkpoint_every_n_epochs: 5
+data_format: instruction
