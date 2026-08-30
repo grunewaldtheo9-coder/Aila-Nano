@@ -1,0 +1,45 @@
+# Aila Nano 50M pretraining — PHASE 2: learning-rate annealing.
+#
+# Evidence for this phase (from phase 1, configs/training/pretrain_50m.yaml):
+# val loss fell 3.72 -> 2.55 by step 500 then nearly stalled (2.5524 ->
+# 2.5252 over 100 steps) while train loss kept dropping (2.35) — the LR was
+# held too high because max_steps=4000 barely decays the cosine. This phase
+# resumes from the step-600 checkpoint and re-runs the cosine over a much
+# shorter horizon (max_steps=1200) so the LR anneals from ~2.7e-4 down to
+# 3e-5, letting the model settle into a sharper minimum instead of
+# overfitting at a flat high LR (spec §15: investigate when val plateaus and
+# the schedule/LR is the cause).
+#
+# Resume with:
+#   python -m training.train \
+#     --model-config configs/model/nano_50m_cpu256.yaml \
+#     --train-config configs/training/pretrain_50m_anneal.yaml --resume
+# It picks up the latest checkpoints/50m/pretrain/step_*.pt (step 600),
+# restoring optimizer + step + best_val_loss (2.5252); only val improvements
+# overwrite best.pt.
+
+train_bin: datasets/processed/pretrain_train.bin
+val_bin: datasets/processed/pretrain_val.bin
+
+max_lr: 6.0e-4
+min_lr: 3.0e-5
+warmup_steps: 100
+max_steps: 1200
+weight_decay: 0.1
+betas: [0.9, 0.95]
+grad_clip: 1.0
+grad_accum_steps: 6
+batch_size: 8
+
+eval_interval: 100
+eval_iters: 20
+log_interval: 10
+checkpoint_dir: checkpoints/50m/pretrain
+keep_last_n_checkpoints: 3
+early_stopping_patience: 6
+
+device: cpu
+amp: false
+seed: 1337
+tensorboard_dir: runs/50m_pretrain
+num_workers: 2
