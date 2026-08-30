@@ -1,0 +1,7 @@
+# Dedicated location for Aila Nano 50M checkpoints, kept separate from the
+# shipped 20M ones (checkpoints/finetune_20m, checkpoints/pretrain_20m).
+# Training writes:
+#   checkpoints/50m/pretrain/   (pretraining run)
+#   checkpoints/50m/finetune/   (instruction / conversation fine-tune)
+# The .pt weights themselves are gitignored; this file just keeps the
+# directory in the tree so the layout is documented and reproducible.

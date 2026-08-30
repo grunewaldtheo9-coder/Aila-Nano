@@ -157,11 +157,28 @@ def describe_checkpoint(ckpt: dict[str, Any]) -> str:
     )
 
 
-def validate_checkpoint_compatibility(ckpt: dict[str, Any], tokenizer_vocab_size: int) -> None:
-    """Raise CheckpointIncompatibleError if `ckpt` can't be used with a
-    tokenizer of `tokenizer_vocab_size`. Checks the config is present and
-    its vocab matches; the model constructor + load_state_dict then catch
-    any remaining tensor-shape mismatch. This runs *before* loading so the
+# Config fields that define the *architecture* (as opposed to training or
+# behavioural settings). Two checkpoints agreeing on these can load each
+# other's weights; disagreeing on any one produces a shape mismatch.
+_ARCH_FIELDS = ("vocab_size", "d_model", "n_layers", "n_heads", "n_kv_heads",
+                "mlp_hidden_mult", "tie_embeddings", "bias")
+
+
+def validate_checkpoint_compatibility(
+    ckpt: dict[str, Any],
+    tokenizer_vocab_size: int,
+    expected_config: "GPTConfig | dict | None" = None,
+) -> None:
+    """Raise CheckpointIncompatibleError if `ckpt` can't be used.
+
+    Always checks the config is present and its vocab matches the tokenizer
+    (a vocab mismatch would let the model emit undecodable token ids).
+
+    When `expected_config` is given — a caller that wants a *specific*
+    architecture (e.g. "load the 50M model") — the checkpoint's
+    architecture-defining fields must match it, so a 20M checkpoint handed
+    to a 50M expectation fails with a clear message instead of an obscure
+    `load_state_dict` shape error. This runs *before* loading, so the
     failure is explained rather than a raw pickling/shape traceback."""
     cfg = ckpt.get("config")
     if not isinstance(cfg, dict):
@@ -177,6 +194,48 @@ def validate_checkpoint_compatibility(ckpt: dict[str, Any], tokenizer_vocab_size
             f"checkpoint was trained with, or the matching checkpoint for this "
             f"tokenizer — loading anyway would produce undecodable output."
         )
+
+    if expected_config is not None:
+        exp = expected_config.to_dict() if hasattr(expected_config, "to_dict") else dict(expected_config)
+        mismatches = [
+            (f, exp.get(f), cfg.get(f))
+            for f in _ARCH_FIELDS
+            if f in exp and exp.get(f) != cfg.get(f)
+        ]
+        if mismatches:
+            exp_params = _approx_params(exp)
+            got_params = _approx_params(cfg)
+            detail = ", ".join(f"{f}: expected {e}, found {g}" for f, e, g in mismatches)
+            raise CheckpointIncompatibleError(
+                f"Checkpoint architecture mismatch: expected a "
+                f"~{exp_params // 1_000_000}M configuration, found an incompatible "
+                f"~{got_params // 1_000_000}M one ({detail}). Point at the matching "
+                f"checkpoint for this architecture, or load without forcing a "
+                f"specific architecture (the architecture is normally read from "
+                f"the checkpoint itself)."
+            )
+
+
+def _approx_params(cfg: dict[str, Any]) -> int:
+    """A rough parameter estimate from an architecture config dict, for
+    human-readable size labels in error messages (embeddings + blocks).
+    Not exact — only used to say "~20M" vs "~50M"."""
+    try:
+        d = int(cfg["d_model"])
+        layers = int(cfg["n_layers"])
+        vocab = int(cfg["vocab_size"])
+        n_heads = int(cfg["n_heads"])
+        n_kv = int(cfg["n_kv_heads"])
+        mult = float(cfg["mlp_hidden_mult"])
+        head_dim = d // n_heads
+        ff = max(8, 8 * round(mult * d / 8))
+        attn = d * (d + 2 * n_kv * head_dim + d)  # q,k,v,o (approx)
+        mlp = d * ff * 3  # SwiGLU: gate, up, down
+        per_block = attn + mlp + 2 * d  # + norms
+        emb = vocab * d  # tied
+        return emb + layers * per_block + d
+    except Exception:
+        return 0
 
 
 def restore_training_state(

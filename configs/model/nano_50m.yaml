@@ -1,0 +1,23 @@
+# Aila Nano 50M architecture (see model/config.py::nano_50m).
+# Measured programmatically: 51,393,024 parameters (tied embeddings),
+# inside the 45M-55M target. Verify with:
+#   python scripts/count_params.py --preset nano_50m
+#
+# max_seq_len is the trained/served context and does NOT affect the
+# parameter count (positions are RoPE, not learned). The architecture ships
+# at 1024; on a CPU-only box you may train with a smaller context (e.g. 256)
+# to keep wall-time sane — set it here and in the training config's dataset
+# prep. Reducing it changes throughput, not the parameter count.
+vocab_size: 8192
+max_seq_len: 1024
+n_layers: 12
+d_model: 512
+n_heads: 8
+n_kv_heads: 4
+mlp_hidden_mult: 4.0
+dropout: 0.1
+norm_eps: 1.0e-5
+rope_theta: 10000.0
+initializer_range: 0.02
+tie_embeddings: true
+bias: false

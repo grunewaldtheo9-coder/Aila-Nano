@@ -1,0 +1,38 @@
+# Aila Nano 50M pretraining config (TrainingConfig schema).
+#
+# HONEST CPU NOTE: at ~51M parameters this is a GPU job. On a 4-CPU box a
+# single step at this shape is minutes, not seconds, so a full pretrain is
+# impractical — this config is here so the 50M run is a "press go on a GPU"
+# away and so the pipeline (optimizer, cosine schedule, checkpointing,
+# resume, TensorBoard) is verified end to end. Checkpoints land in a
+# dedicated 50M location, separate from the shipped 20M ones.
+#
+# amp is left off (bf16 CPU autocast helps little at this scale and can hurt
+# numerics); flip it on for a GPU run, where the trainer uses fp16 + a
+# GradScaler automatically.
+
+train_bin: datasets/processed/pretrain_train.bin
+val_bin: datasets/processed/pretrain_val.bin
+
+max_lr: 4.0e-4
+min_lr: 4.0e-5
+warmup_steps: 200
+max_steps: 20000
+weight_decay: 0.1
+betas: [0.9, 0.95]
+grad_clip: 1.0
+grad_accum_steps: 8
+batch_size: 16
+
+eval_interval: 250
+eval_iters: 50
+log_interval: 20
+checkpoint_dir: checkpoints/50m/pretrain
+keep_last_n_checkpoints: 3
+early_stopping_patience: null
+
+device: auto
+amp: false
+seed: 1337
+tensorboard_dir: runs/50m_pretrain
+num_workers: 2

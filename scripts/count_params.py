@@ -66,6 +66,7 @@ def main():
 
     model = AilaNanoGPT(cfg)
     total = count_parameters(model)
+    trainable = count_parameters(model, trainable_only=True)
     non_embed = model.num_parameters(exclude_embeddings=True)
 
     print("Config:")
@@ -79,6 +80,7 @@ def main():
         print(f"  {name:12s} {n:>12,}  ({format_param_count(n)})")
     print()
     print(f"Total parameters:              {total:>12,}  ({format_param_count(total)})")
+    print(f"Trainable parameters:          {trainable:>12,}  ({format_param_count(trainable)})")
     print(f"Total (excluding embeddings):  {non_embed:>12,}  ({format_param_count(non_embed)})")
     print(f"Target: {format_param_count(target)}  |  Delta: {(total - target) / target:+.2%}")
 

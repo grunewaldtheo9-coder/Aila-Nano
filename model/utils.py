@@ -5,8 +5,13 @@ from __future__ import annotations
 import torch.nn as nn
 
 
-def count_parameters(module: nn.Module) -> int:
-    return sum(p.numel() for p in module.parameters())
+def count_parameters(module: nn.Module, trainable_only: bool = False) -> int:
+    """Total parameter count of `module`. With `trainable_only=True`, count
+    only parameters that require gradients (what an optimizer would update)."""
+    params = module.parameters()
+    if trainable_only:
+        return sum(p.numel() for p in params if p.requires_grad)
+    return sum(p.numel() for p in params)
 
 
 def format_param_count(n: int) -> str:

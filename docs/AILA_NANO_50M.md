@@ -49,6 +49,38 @@ Same grouped-query attention, RoPE, RMSNorm, SwiGLU, and tied embeddings as
 the 10M/20M presets, so the training, inference, and checkpoint code work
 unchanged.
 
+### 20M vs 50M at a glance
+
+| | nano_20m (shipped, trained) | nano_50m (architecture only) |
+|---|---|---|
+| parameters | 19,796,160 | 51,393,024 |
+| d_model | 320 | 512 |
+| layers | 15 | 12 |
+| heads / KV heads | 8 / 4 | 8 / 4 |
+| head_dim | 40 | 64 |
+| feed-forward (SwiGLU) | 872 (×2.72) | 2048 (×4.0) |
+| context length | 512 | 1024 |
+| vocab | 8192 | 8192 |
+| checkpoint dir | `checkpoints/finetune_20m/` | `checkpoints/50m/` |
+| trained weights | ✅ shipped | ⏳ needs a GPU run |
+
+The 50M is wider (bigger `d_model` and feed-forward) with a longer context;
+the 20M is deeper. Both share the tokenizer, the attention design, and the
+checkpoint format, so the only thing standing between the 50M architecture
+and a working 50M model is a training run.
+
+### Known limitations
+
+- **No trained 50M weights.** The 50M *architecture* is implemented and
+  verified; a 50M *checkpoint* has not been trained (that needs a GPU). An
+  untrained 50M network produces noise, so the trained 20M remains the
+  shipped model.
+- **CPU pretraining is impractical at 51M.** The pipeline runs on CPU, but
+  a real pretrain is a GPU job — see "CPU compatibility" below.
+- **1024-token context on CPU** roughly doubles attention cost vs the 20M's
+  512; a CPU training run may use a shorter context (parameter count is
+  unaffected).
+
 Verify the count yourself:
 
 ```bash
@@ -221,34 +253,81 @@ python chat.py --checkpoint checkpoints/chat_50m/best.pt   # a future 50M model
 A vocab mismatch fails with a clear message rather than a shape error, and
 `/model` in chat shows the loaded model's size and architecture.
 
+### Configuration files
+
+The 50M architecture and its training recipes live in version-controlled
+config files, so the run is reproducible and there are no magic numbers in
+the training scripts:
+
+| File | Purpose |
+|---|---|
+| `configs/model/nano_50m.yaml` | the architecture (matches `model/config.py::nano_50m`) |
+| `configs/training/pretrain_50m.yaml` | pretraining hyperparameters (TrainingConfig) |
+| `configs/training/finetune_50m.yaml` | instruction / conversation fine-tune (FinetuneConfig) |
+
+All 50M checkpoints are written under a dedicated `checkpoints/50m/`
+directory, kept **separate** from the shipped 20M checkpoints
+(`checkpoints/finetune_20m/`, `checkpoints/pretrain_20m/`) so nothing is
+overwritten.
+
 ### How to actually train the 50M model (on a GPU)
 
 ```bash
 # 1. Pretrain the 50M model on general text (TinyStories/WikiText shards).
-python -m training.train --preset nano_50m --out-dir checkpoints/pretrain_50m
+#    --preset nano_50m selects the built-in architecture; the equivalent
+#    explicit form is --model-config configs/model/nano_50m.yaml.
+python -m training.train \
+    --preset nano_50m \
+    --train-config configs/training/pretrain_50m.yaml
+#    -> checkpoints/50m/pretrain/
 
-# 2. Instruction-tune.
-python -m finetuning.finetune \
-    --init-checkpoint checkpoints/pretrain_50m/best.pt \
-    --tokenizer tokenizer/artifacts/aila_nano.model \
-    --data datasets/aila_knowledge/*.jsonl \
-    --out-dir checkpoints/instruct_50m
+# Resume an interrupted run (picks up the latest checkpoint in the dir):
+python -m training.train \
+    --preset nano_50m \
+    --train-config configs/training/pretrain_50m.yaml --resume
 
-# 3. Conversation fine-tune (the new chat format).
+# 2. Instruction / conversation fine-tune (chat format).
 python -m finetuning.finetune \
-    --init-checkpoint checkpoints/instruct_50m/best.pt \
+    --init-checkpoint checkpoints/50m/pretrain/best.pt \
     --tokenizer tokenizer/artifacts/aila_nano.model \
     --data datasets/conversational/*.jsonl \
     --format chat \
-    --out-dir checkpoints/chat_50m
+    --config configs/training/finetune_50m.yaml
+#    -> checkpoints/50m/finetune/
 
-# 4. Point the engine at it.
-export AILA_CHECKPOINT=checkpoints/chat_50m/best.pt
+# 3. Point the chat at it (architecture is auto-detected from the file).
+python chat.py --checkpoint checkpoints/50m/finetune/best.pt
+# or: export AILA_CHECKPOINT=checkpoints/50m/finetune/best.pt
 ```
 
-The chat pipeline is verified end to end on a small model (loss computes,
-decreases, checkpoints save) — the only missing ingredient is GPU time for
-the real 50M run.
+The pipeline is verified end to end on a small model (loss computes,
+decreases, checkpoints save and resume) and the config files load into the
+verified 51,393,024-parameter architecture — the only missing ingredient is
+GPU time for the real 50M run.
+
+### CPU compatibility and mixed precision
+
+Everything above runs on CPU without a GPU or any CUDA-only dependency; the
+50M *architecture, configs, param accounting, checkpoint handling, and
+inference path* are all exercised on CPU in the test suite. What CPU can't
+do at ~51M parameters is a *fast* pretraining run — a single step is minutes,
+not seconds, so a full pretrain is a GPU job (this is stated honestly, not
+worked around). Mixed precision is handled safely for CPU: the trainer only
+enables the fp16 `GradScaler` on CUDA and uses bf16 autocast elsewhere, so
+turning `amp` on never assumes CUDA exists (the 50M pretrain config leaves
+it off, since bf16 buys little at this scale on CPU).
+
+### Loading the wrong checkpoint fails clearly
+
+The engine reads a checkpoint's architecture from its own stored `config`,
+so a 20M or a 50M checkpoint each load correctly with no code change. A
+vocab mismatch against the tokenizer is rejected up front with a plain-
+language message. And a caller that explicitly demands a specific
+architecture (`validate_checkpoint_compatibility(ckpt, vocab,
+expected_config=nano_50m())`) gets a clear **"Checkpoint architecture
+mismatch: expected a ~50M configuration, found an incompatible ~20M one
+(d_model: expected 512, found 320, …)"** instead of a cryptic
+`load_state_dict` shape error.
 
 ## Migration from 20M (spec §83)
 
