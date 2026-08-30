@@ -14,21 +14,31 @@ machine without a GPU:
 | 50M **architecture** (config + verified parameter count) | ✅ Done |
 | Conversational **behaviour today** (personality, no-search routing) | ✅ Done, deterministic |
 | Multi-turn **chat format** + datasets + validator + training path | ✅ Done, tested |
-| **Trained** 50M conversational **weights** | ⏳ Needs a GPU training run |
+| **Trained** 50M **weights** (pretrain + instruction fine-tune) | ✅ Done on CPU (data-limited) — see below |
 
-At ~50M parameters, real conversational ability comes from *training the
-weights* on the conversational data — and that is a GPU job (days on the
-right hardware), not something a 4-CPU box can do. An untrained 50M network
-produces noise, which is worse than the current **trained 20M** model. So:
+**A real 50M checkpoint has now been trained** — on CPU, on this repo's
+existing corpus. It is a genuine trained model (it generates coherent
+English and beats the 20M on validation loss), but it is **data-limited**,
+not a full-scale model. The full numbers are in
+"[Actual training run](#actual-training-run-real-numbers)" below. In short:
 
-- The **20M trained checkpoint remains the shipped model.**
-- The 50M architecture, the chat pipeline, and the datasets are all in
-  place and tested, so a 50M training run is a "press go on a GPU" away.
-- Aila still gets **noticeably more conversational today**, because the
-  personality and routing improvements live in the deterministic layer and
-  need no retraining.
+- **Pretrain** (TinyStories, 17.4M tokens): val loss **2.2625** (ppl 9.61)
+  vs the 20M's 2.6304 (ppl 13.88) — the extra capacity measurably helps.
+- **Instruction fine-tune** (same recipe as the shipped 20M): val loss
+  **0.7153** (ppl 2.04) vs the 20M's 1.2297.
+- Raw open-ended generation is still **unreliable** (the pretrain corpus is
+  TinyStories-only and the instruction set is ~166 examples), so freeform
+  generation stays **off** by default for the 50M exactly as for the 20M,
+  and the deterministic router is unchanged.
 
-Nothing here fakes a training run (spec §91).
+Because of that, and because the checkpoints are 617 MB each (git-ignored,
+like all `*.pt`), the **20M remains the default shipped checkpoint**; the
+50M is opt-in via `--checkpoint checkpoints/50m/finetune/best.pt` and is
+fully reproducible from the committed configs (commands below).
+
+What is *not* claimed: no GPU run happened, no multi-day run happened, no
+billions of tokens were processed. Every number here is measured from the
+actual CPU run (spec §91, §18, §24 truthfulness).
 
 ## The architecture
 
@@ -69,14 +79,100 @@ the 20M is deeper. Both share the tokenizer, the attention design, and the
 checkpoint format, so the only thing standing between the 50M architecture
 and a working 50M model is a training run.
 
+### Actual training run (real numbers)
+
+A genuine two-stage run was executed **on CPU** (4-core Intel Xeon @
+2.10 GHz, 15 GiB RAM, no GPU — `torch 2.13.0+cpu`). Measured, not estimated:
+
+**Stage 1 — pretraining** (`configs/training/pretrain_50m.yaml`, then a
+learning-rate-annealing phase 2, `pretrain_50m_anneal.yaml`):
+
+| | value |
+|---|---|
+| corpus | TinyStories, `pretrain_train.bin` = 17,410,541 tokens; val = 175,864 |
+| context / micro-batch / grad-accum | 256 / 8 / 6 = 12,288 tokens per optimizer step |
+| throughput (measured) | ~800 tokens/sec (~15 s/step) |
+| optimizer steps | 900 (best); ~11M tokens seen (~0.6 epoch effective) |
+| **best val loss** | **2.2625** (perplexity **9.61**) at step 900 |
+| dataset passes | < 1 (data-limited; no silent repetition) |
+
+Phase 2 was a deliberate response to a plateau: val loss stalled at ~2.55
+around step 500–600 while train loss kept falling (the cosine over
+`max_steps=4000` barely decayed the LR). Resuming from the step-600
+checkpoint with a shorter schedule (`max_steps=1200`, LR annealing to 3e-5)
+unstuck it — val fell to 2.3927 then 2.2625 within 300 steps. This is the
+spec §15 "investigate the plateau / schedule" behaviour, done for real.
+
+**Stage 2 — instruction fine-tune** (`configs/training/finetune_50m.yaml`,
+from the stage-1 checkpoint, same data recipe as the shipped 20M):
+
+| | value |
+|---|---|
+| data | Aila identity/company + general instructions + basic Portuguese (~166 examples) |
+| epochs / steps | 40 / 1120 |
+| **best val loss** | **0.7153** (perplexity **2.04**) |
+
+**20M vs 50M (same corpus and recipe, lower is better):**
+
+| checkpoint | params | val loss | perplexity |
+|---|---|---|---|
+| 20M pretrain | 19,796,160 | 2.6304 | 13.88 |
+| **50M pretrain** | 51,393,024 | **2.2625** | **9.61** |
+| 20M instruction fine-tune (shipped) | 19,796,160 | 1.2297 | 3.42 |
+| **50M instruction fine-tune** | 51,393,024 | **0.7153** | **2.04** |
+
+The 50M is the better *language model* on this data by a clear margin.
+Fine-tune val losses use each run's own held-out split, so treat the
+fine-tune row as indicative rather than a controlled A/B.
+
+**Qualitative (honest).** The pretrain checkpoint generates fluent
+TinyStories-style English ("Once upon a time, there was a little girl named
+Lily. She loved to play outside in the sunshine…"). The fine-tuned model
+loads and integrates with the engine/router (verified: identity routing
+works, `/model` reports the 51M metadata), but its *raw* freeform answers
+are inconsistent — some correct ("I'm Aila Nano … about … parameters …"),
+some contaminated by TinyStories narrative ("I was founded by The boy"). At
+17.4M pretrain tokens and ~166 instruction examples that is expected, and it
+is exactly why freeform stays off and the router stays deterministic.
+
+**Reproduce:**
+
+```bash
+# Stage 1: pretrain (then optional anneal phase), CPU
+python -m training.train \
+  --model-config configs/model/nano_50m_cpu256.yaml \
+  --train-config configs/training/pretrain_50m.yaml
+python -m training.train \
+  --model-config configs/model/nano_50m_cpu256.yaml \
+  --train-config configs/training/pretrain_50m_anneal.yaml --resume
+
+# Stage 2: instruction fine-tune
+python -m finetuning.finetune \
+  --init-checkpoint checkpoints/50m/pretrain/best.pt \
+  --tokenizer tokenizer/artifacts/aila_nano.model \
+  --data datasets/aila_knowledge/aila_company.jsonl \
+         datasets/sample/finetune_sample.jsonl \
+         datasets/aila_knowledge/portuguese_basic.jsonl \
+  --config configs/training/finetune_50m.yaml
+
+# Use it
+python chat.py --checkpoint checkpoints/50m/finetune/best.pt
+```
+
 ### Known limitations
 
-- **No trained 50M weights.** The 50M *architecture* is implemented and
-  verified; a 50M *checkpoint* has not been trained (that needs a GPU). An
-  untrained 50M network produces noise, so the trained 20M remains the
-  shipped model.
-- **CPU pretraining is impractical at 51M.** The pipeline runs on CPU, but
-  a real pretrain is a GPU job — see "CPU compatibility" below.
+- **The 50M checkpoint is data-limited, not a full model.** It is really
+  trained (see "Actual training run") and beats the 20M on val loss, but on
+  17.4M TinyStories tokens + ~166 instruction examples it has only seen a
+  narrow slice of language. Its raw freeform generation is unreliable, so
+  the deterministic router (not model freeform) still drives chat, and the
+  20M stays the default shipped checkpoint. A larger, more diverse corpus —
+  and ideally a GPU for a longer run — is what would turn this into a model
+  worth shipping as the default.
+- **CPU pretraining is slow at 51M.** ~800 tokens/sec here means ~6.7 h per
+  epoch of the corpus; a full-scale run is a GPU job. The run done here was
+  the longest useful one for a data-limited CPU setting, stopped by
+  validation (overfitting onset), not by an arbitrary step count.
 - **1024-token context on CPU** roughly doubles attention cost vs the 20M's
   512; a CPU training run may use a shorter context (parameter count is
   unaffected).

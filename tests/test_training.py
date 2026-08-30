@@ -164,3 +164,35 @@ def test_trainer_resume_continues_from_saved_step(tmp_path, tiny_config):
     assert trainer2.state.step == 5
     state = trainer2.train()
     assert state.step == 10
+
+
+def test_trainer_stops_safely_on_non_finite_loss(tmp_path, tiny_config):
+    # Spec §11: a NaN/Inf loss must stop training before it poisons the
+    # checkpoint — the loop breaks, the step counter does not advance past
+    # the bad step, and no "best.pt" is written for the non-finite state.
+    ids = np.random.randint(0, tiny_config.vocab_size, size=2000).tolist()
+    train_bin = tmp_path / "train.bin"
+    val_bin = tmp_path / "val.bin"
+    write_token_bin(ids[:1800], str(train_bin))
+    write_token_bin(ids[1800:], str(val_bin))
+
+    model = AilaNanoGPT(tiny_config)
+    cfg = TrainingConfig(
+        train_bin=str(train_bin), val_bin=str(val_bin),
+        max_lr=1e-3, min_lr=1e-4, warmup_steps=2, max_steps=10, batch_size=4,
+        eval_interval=5, eval_iters=2, log_interval=5,
+        checkpoint_dir=str(tmp_path / "ckpts"), early_stopping_patience=None,
+        device="cpu", amp=False, tensorboard_dir=str(tmp_path / "tb"), num_workers=0,
+    )
+    trainer = Trainer(model, cfg)
+
+    # Force a non-finite loss that is still connected to the graph so
+    # backward() runs and produces non-finite grads.
+    def nan_loss(x, y):
+        return next(trainer.model.parameters()).sum() * float("nan")
+
+    trainer._forward_loss = nan_loss
+    state = trainer.train()
+
+    assert state.step == 0  # broke on the first (bad) step, never advanced
+    assert not (Path(cfg.checkpoint_dir) / "best.pt").exists()
