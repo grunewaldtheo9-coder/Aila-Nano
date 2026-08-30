@@ -214,32 +214,46 @@ class Trainer:
             else:
                 self.optimizer.step()
 
+            # Stability guard (spec §11): never let a non-finite loss or
+            # gradient silently poison training. Stop safely so the last
+            # healthy rolling checkpoint stays intact and can be resumed
+            # from with corrected settings, rather than saving a NaN "best".
+            if not math.isfinite(step_loss) or not torch.isfinite(grad_norm):
+                logger.error(
+                    "Non-finite value at step %d (loss=%s, grad_norm=%s) — stopping "
+                    "before it corrupts the checkpoint. Resume from the last rolling "
+                    "checkpoint in %s with a lower LR / stronger grad clipping.",
+                    self.state.step + 1, step_loss, float(grad_norm), self.cfg.checkpoint_dir,
+                )
+                break
+
             running_loss += step_loss
             self.state.step += 1
+
+            tokens_per_step = (
+                self.cfg.batch_size * self.cfg.grad_accum_steps * self.model.cfg.max_seq_len
+            )
+            tokens_seen = self.state.step * tokens_per_step
 
             if self.state.step % self.cfg.log_interval == 0:
                 elapsed = time.time() - t0
                 avg_loss = running_loss / self.cfg.log_interval
-                tok_per_sec = (
-                    self.cfg.batch_size
-                    * self.cfg.grad_accum_steps
-                    * self.model.cfg.max_seq_len
-                    * self.cfg.log_interval
-                    / max(elapsed, 1e-9)
-                )
+                tok_per_sec = tokens_per_step * self.cfg.log_interval / max(elapsed, 1e-9)
                 logger.info(
-                    "step %d/%d | loss %.4f | lr %.2e | grad_norm %.3f | %.0f tok/s",
+                    "step %d/%d | loss %.4f | lr %.2e | grad_norm %.3f | %.0f tok/s | seen %.2fM",
                     self.state.step,
                     self.cfg.max_steps,
                     avg_loss,
                     lr,
                     grad_norm,
                     tok_per_sec,
+                    tokens_seen / 1e6,
                 )
                 self.writer.add_scalar("train/loss", avg_loss, self.state.step)
                 self.writer.add_scalar("train/lr", lr, self.state.step)
                 self.writer.add_scalar("train/grad_norm", grad_norm, self.state.step)
                 self.writer.add_scalar("train/tokens_per_sec", tok_per_sec, self.state.step)
+                self.writer.add_scalar("train/tokens_seen", tokens_seen, self.state.step)
                 running_loss = 0.0
                 t0 = time.time()
 

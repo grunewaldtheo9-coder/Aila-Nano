@@ -1,37 +1,43 @@
-# Aila Nano 50M pretraining config (TrainingConfig schema).
+# Aila Nano 50M pretraining — the REAL CPU run config for this environment.
 #
-# HONEST CPU NOTE: at ~51M parameters this is a GPU job. On a 4-CPU box a
-# single step at this shape is minutes, not seconds, so a full pretrain is
-# impractical — this config is here so the 50M run is a "press go on a GPU"
-# away and so the pipeline (optimizer, cosine schedule, checkpointing,
-# resume, TensorBoard) is verified end to end. Checkpoints land in a
-# dedicated 50M location, separate from the shipped 20M ones.
+# Environment (measured, not assumed): 4-core Intel Xeon @ 2.10GHz, 15 GiB
+# RAM, NO GPU (torch 2.13.0+cpu). Measured 50M throughput: ~730 tok/s at
+# seq 256, micro-batch 8. Corpus: datasets/processed/pretrain_train.bin =
+# 17,410,541 tokens (TinyStories); val = 175,864 tokens.
 #
-# amp is left off (bf16 CPU autocast helps little at this scale and can hurt
-# numerics); flip it on for a GPU run, where the trainer uses fp16 + a
-# GradScaler automatically.
+# Shape: micro-batch 8 x seq 256 x grad_accum 6 = 12,288 tokens / optimizer
+# step. At ~730 tok/s that is ~17 s/step (~210 steps/hour); one epoch of the
+# corpus is ~1,417 steps (~6.7 h). max_steps is set high and EARLY STOPPING
+# on validation loss decides when to stop — the 50M has more capacity than
+# the corpus can fill, so val loss is expected to bottom out and then rise
+# (overfitting); the best checkpoint is kept automatically.
+#
+# amp off: bf16 CPU autocast gives no measured speedup here and risks
+# numerics; the GradScaler is CUDA-only anyway (handled safely by the trainer).
+# Use --model-config configs/model/nano_50m_cpu256.yaml (seq 256; identical
+# 51,393,024 params to nano_50m).
 
 train_bin: datasets/processed/pretrain_train.bin
 val_bin: datasets/processed/pretrain_val.bin
 
-max_lr: 4.0e-4
-min_lr: 4.0e-5
-warmup_steps: 200
-max_steps: 20000
+max_lr: 6.0e-4
+min_lr: 6.0e-5
+warmup_steps: 100
+max_steps: 4000
 weight_decay: 0.1
 betas: [0.9, 0.95]
 grad_clip: 1.0
-grad_accum_steps: 8
-batch_size: 16
+grad_accum_steps: 6
+batch_size: 8
 
-eval_interval: 250
-eval_iters: 50
-log_interval: 20
+eval_interval: 100
+eval_iters: 20
+log_interval: 10
 checkpoint_dir: checkpoints/50m/pretrain
 keep_last_n_checkpoints: 3
-early_stopping_patience: null
+early_stopping_patience: 8
 
-device: auto
+device: cpu
 amp: false
 seed: 1337
 tensorboard_dir: runs/50m_pretrain

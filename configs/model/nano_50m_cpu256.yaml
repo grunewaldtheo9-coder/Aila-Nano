@@ -1,0 +1,20 @@
+# Aila Nano 50M architecture, trained context reduced to 256 tokens for a
+# CPU-feasible run. The parameter count is IDENTICAL to nano_50m (positions
+# are RoPE, not learned — 51,393,024 params either way); only the trained/
+# served context differs. This matches the established practice for the
+# shipped 20M model, which was also trained at seq 256 on this same corpus.
+# Measured throughput on this 4-core CPU: ~730 tok/s at seq 256, batch 8
+# (vs ~468 at seq 512), so 256 is the practical choice here.
+vocab_size: 8192
+max_seq_len: 256
+n_layers: 12
+d_model: 512
+n_heads: 8
+n_kv_heads: 4
+mlp_hidden_mult: 4.0
+dropout: 0.1
+norm_eps: 1.0e-5
+rope_theta: 10000.0
+initializer_range: 0.02
+tie_embeddings: true
+bias: false
