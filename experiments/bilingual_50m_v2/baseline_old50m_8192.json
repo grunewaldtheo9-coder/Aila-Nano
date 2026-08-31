@@ -1,0 +1,55 @@
+{
+  "checkpoint": "checkpoints/50m/finetune/best.pt",
+  "tokenizer": "tokenizer/artifacts/aila_nano.model",
+  "tokenizer_vocab_size": 8192,
+  "checkpoint_step": 1120,
+  "checkpoint_dataset": null,
+  "english_perplexity": {
+    "loss": 4.8622,
+    "perplexity": 129.3079,
+    "tokens": 152,
+    "chars": 673,
+    "tokens_per_char": 0.2259,
+    "bits_per_char": 1.5843,
+    "path": "evaluation/data/eval_en.txt"
+  },
+  "portuguese_perplexity": {
+    "loss": 7.8631,
+    "perplexity": 2599.6685,
+    "tokens": 343,
+    "chars": 665,
+    "tokens_per_char": 0.5158,
+    "bits_per_char": 5.8512,
+    "path": "evaluation/data/eval_pt.txt"
+  },
+  "generations": [
+    {
+      "prompt": "Once upon a time",
+      "generation": ", there was a little girl named Lily. She loved to play with her toys and run around in the sunshine. One day, she found a pretty butterfly in a garden. It was so pretty!",
+      "repeat_ngram_fraction": 0.0,
+      "top_token_share": 0.0857,
+      "n_tokens": 35
+    },
+    {
+      "prompt": "The weather today",
+      "generation": "was over the window and it was a beautiful day.",
+      "repeat_ngram_fraction": 0.0,
+      "top_token_share": 0.2,
+      "n_tokens": 10
+    },
+    {
+      "prompt": "Era uma vez",
+      "generation": ".",
+      "repeat_ngram_fraction": 0.0,
+      "top_token_share": 0.0,
+      "n_tokens": 1
+    },
+    {
+      "prompt": "A cidade de",
+      "generation": "out. The rabbit was so surprised and happy that the creature was smiling at its wise words. It was so grateful to have a new friend.",
+      "repeat_ngram_fraction": 0.0,
+      "top_token_share": 0.1154,
+      "n_tokens": 26
+    }
+  ]
+}

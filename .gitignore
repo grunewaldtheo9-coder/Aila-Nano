@@ -80,3 +80,8 @@ knowledge/data/*.db
 knowledge/data/*.sqlite3
 !knowledge/data/.gitkeep
 datasets/conversational/split/
+
+# v2 bilingual experiment checkpoints (large .pt; JSON results under experiments/ are committed)
+checkpoints_v2/
+# bounded raw slices used to build corpora
+datasets/raw/tinystories_slice.txt

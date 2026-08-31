@@ -1,0 +1,30 @@
+# Base TrainingConfig for the 50M-v2 bilingual data-scaling sweep. Token
+# budgets are supplied per-run by scripts/scaling_experiment.py. All budgets
+# stay under the corpus's unique train-token count (~1.2M) so there is NO
+# data repetition. Frequent evals so small budgets still get validation
+# points. max_steps is a non-binding ceiling; the token budget binds.
+train_bin: datasets/pretrain/aila_pretrain_v2_bilingual/train.bin
+val_bin: datasets/pretrain/aila_pretrain_v2_bilingual/val.bin
+
+max_lr: 6.0e-4
+min_lr: 6.0e-5
+warmup_steps: 40
+max_steps: 100000
+weight_decay: 0.1
+betas: [0.9, 0.95]
+grad_clip: 1.0
+grad_accum_steps: 6
+batch_size: 8
+
+eval_interval: 40
+eval_iters: 20
+log_interval: 20
+checkpoint_dir: checkpoints_v2/50m_bilingual/_base
+keep_last_n_checkpoints: 1
+early_stopping_patience: null
+
+device: auto
+amp: false
+seed: 1337
+tensorboard_dir: runs/50m_v2_bilingual/_base
+num_workers: 2

@@ -1,0 +1,20 @@
+# Aila Nano 50M v2 — same architecture as nano_50m, but vocab 16384 for the
+# bilingual tokenizer (tokenizer/artifacts/v2_bilingual). The larger tied
+# embedding raises the parameter count to 55,587,328 (+4.2M vs the 8192
+# model); everything else (12 layers, d_model 512, 8 heads / 4 KV, FFN 2048,
+# SwiGLU, RoPE) is unchanged. seq 256 for CPU-feasible training, as with the
+# 8192 model. This is a FRESH model — it must be trained from scratch; the
+# old 8192 checkpoints are NOT compatible (different vocab/embedding).
+vocab_size: 16384
+max_seq_len: 256
+n_layers: 12
+d_model: 512
+n_heads: 8
+n_kv_heads: 4
+mlp_hidden_mult: 4.0
+dropout: 0.1
+norm_eps: 1.0e-5
+rope_theta: 10000.0
+initializer_range: 0.02
+tie_embeddings: true
+bias: false

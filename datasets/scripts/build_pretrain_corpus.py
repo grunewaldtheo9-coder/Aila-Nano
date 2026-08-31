@@ -98,6 +98,10 @@ def parse_args():
     p.add_argument("--source-name", default="")
     p.add_argument("--source-license", default="")
     p.add_argument("--source-url", default="")
+    p.add_argument("--no-near-dedup", action="store_true",
+                   help="Skip the O(n^2) near-duplicate pass (exact dedup still runs). "
+                        "Use for large corpora of distinct works where near-dup adds "
+                        "little; keeps the build tractable on CPU.")
     return p.parse_args()
 
 
@@ -133,11 +137,12 @@ def main():
             stats["after_lang_filter"] += 1
             docs.append(doc)
 
-    # Deduplicate (exact then near-duplicate).
+    # Deduplicate (exact then optionally near-duplicate).
     before = len(docs)
     docs = exact_dedupe(docs)
     after_exact = len(docs)
-    docs = near_dedupe(docs, threshold=0.8)
+    if not args.no_near_dedup:
+        docs = near_dedupe(docs, threshold=0.8)
     stats["after_dedup"] = len(docs)
     stats["exact_duplicates_removed"] = before - after_exact
     stats["near_duplicates_removed"] = after_exact - stats["after_dedup"]

@@ -33,7 +33,24 @@ from evaluation.perplexity import evaluate_language_file, repetition_score
 
 import torch
 
-_GEN_PROMPTS = ["Once upon a time", "The weather today", "Era uma vez", "A cidade de"]
+_DEFAULT_PROMPTS = ["Once upon a time", "The weather today", "Era uma vez", "A cidade de"]
+
+
+def _load_prompts() -> list[tuple[str, str]]:
+    """Fixed bilingual generation prompts (committed under evaluation/data/),
+    kept constant across checkpoints so comparisons are meaningful. Falls
+    back to a small default set if the files are absent."""
+    out: list[tuple[str, str]] = []
+    for lang, path in (("en", "evaluation/data/prompts_en.txt"),
+                       ("pt", "evaluation/data/prompts_pt.txt")):
+        p = Path(path)
+        if p.exists():
+            for line in p.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    out.append((lang, line.strip()))
+    if not out:
+        out = [("en" if i < 2 else "pt", pr) for i, pr in enumerate(_DEFAULT_PROMPTS)]
+    return out
 
 
 def load_model(checkpoint: str, tokenizer: AilaTokenizer, device="cpu"):
@@ -65,11 +82,11 @@ def main():
     pt = evaluate_language_file(model, tok, args.eval_pt, device=args.device)
 
     gens = []
-    for prompt in _GEN_PROMPTS:
+    for lang, prompt in _load_prompts():
         ids = torch.tensor([tok.encode(prompt)], dtype=torch.long, device=args.device)
         out = generate(model, ids, max_new_tokens=40, temperature=0.7, top_k=40, eos_id=tok.eos_id)
         text = tok.decode(out[0, ids.shape[1]:].tolist())
-        gens.append({"prompt": prompt, "generation": text.strip(), **repetition_score(text)})
+        gens.append({"lang": lang, "prompt": prompt, "generation": text.strip(), **repetition_score(text)})
 
     result = {
         "checkpoint": args.checkpoint,

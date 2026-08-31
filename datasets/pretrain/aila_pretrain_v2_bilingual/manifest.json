@@ -1,0 +1,44 @@
+{
+  "version": "aila_pretrain_v2_bilingual",
+  "tokenizer_path": "tokenizer/artifacts/v2_bilingual/aila_nano_v2_bilingual.model",
+  "tokenizer_vocab_size": 16384,
+  "train_bin": "datasets/pretrain/aila_pretrain_v2_bilingual/train.bin",
+  "val_bin": "datasets/pretrain/aila_pretrain_v2_bilingual/val.bin",
+  "train_sha256": "99bb7470342c48bddf5b86519fa6326cba6cac3e16653e0587bc4231a43ae28c",
+  "train_tokens": 1205462,
+  "val_sha256": "5f8abd86e4f65e51d383610aae68827e54f4af6627370c63992dd799bd6a8428",
+  "val_tokens": 65322,
+  "document_count": 15910,
+  "language_distribution": {
+    "pt": 7121,
+    "en": 8789
+  },
+  "token_distribution": {
+    "pt": 789207,
+    "en": 481577
+  },
+  "filter_config": {
+    "min_doc_chars": 150,
+    "clean_document": true,
+    "is_low_quality": true,
+    "langid_filter": true,
+    "exact_dedupe": true,
+    "near_dedupe_threshold": 0.8,
+    "target_ratios": {
+      "pt": 0.5,
+      "en": 0.5
+    }
+  },
+  "sources": [
+    {
+      "name": "TinyStories (EN, CDLA-Sharing-1.0) + Project Gutenberg PT literature (public domain)",
+      "license": "CDLA-Sharing-1.0 (EN) / Public domain (PT)",
+      "url": "",
+      "provenance": "Fetched via build_pretrain_corpus.py; verify license before redistribution.",
+      "documents": 15910,
+      "tokens": 1270784
+    }
+  ],
+  "created_at": "2026-08-31T15:33:44.429301+00:00",
+  "git_commit": "a19c3c0a907e92eac74620cafb7190284a3ee73f"
+}
