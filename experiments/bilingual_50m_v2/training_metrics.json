@@ -1,0 +1,80 @@
+[
+  {
+    "model_parameters": 55587328,
+    "training_tokens_budget": 1100000,
+    "tokens_seen": 1105920,
+    "unique_tokens": 1205462,
+    "epochs": 0.9174,
+    "tokens_per_parameter": 0.0199,
+    "final_train_loss": 5.4578,
+    "best_val_loss": 5.3379,
+    "final_val_loss": 5.419,
+    "best_val_perplexity": 208.0784,
+    "training_time_sec": 1534.6,
+    "tokens_per_sec": 720.7,
+    "effective_max_steps": 90,
+    "dataset_version": "aila_pretrain_v2_bilingual",
+    "dataset_sha256": "99bb7470342c48bddf5b86519fa6326cba6cac3e16653e0587bc4231a43ae28c",
+    "language_mixture": {
+      "pt": 7121,
+      "en": 8789
+    },
+    "seed": 1337,
+    "context_length": 256,
+    "checkpoint_dir": "checkpoints_v2/50m_bilingual/tokens_1100000",
+    "timestamp": "2026-08-31T16:24:25.402883+00:00",
+    "git_commit": "ebd33f833f28b3e5ea15597475075097c39fc1a6"
+  },
+  {
+    "model_parameters": 55587328,
+    "training_tokens_budget": 300000,
+    "tokens_seen": 307200,
+    "unique_tokens": 1205462,
+    "epochs": 0.2548,
+    "tokens_per_parameter": 0.0055,
+    "final_train_loss": 6.8449,
+    "best_val_loss": 6.9476,
+    "final_val_loss": 6.9385,
+    "best_val_perplexity": 1040.6495,
+    "training_time_sec": 468.8,
+    "tokens_per_sec": 655.2,
+    "effective_max_steps": 25,
+    "dataset_version": "aila_pretrain_v2_bilingual",
+    "dataset_sha256": "99bb7470342c48bddf5b86519fa6326cba6cac3e16653e0587bc4231a43ae28c",
+    "language_mixture": {
+      "pt": 7121,
+      "en": 8789
+    },
+    "seed": 1337,
+    "context_length": 256,
+    "checkpoint_dir": "checkpoints_v2/50m_bilingual/tokens_300000",
+    "timestamp": "2026-08-31T15:43:50.277127+00:00",
+    "git_commit": "80e9df8aa8b31cb344d32aeba8fc678b43c728e8"
+  },
+  {
+    "model_parameters": 55587328,
+    "training_tokens_budget": 600000,
+    "tokens_seen": 602112,
+    "unique_tokens": 1205462,
+    "epochs": 0.4995,
+    "tokens_per_parameter": 0.0108,
+    "final_train_loss": 5.9305,
+    "best_val_loss": 6.075,
+    "final_val_loss": 6.0473,
+    "best_val_perplexity": 434.842,
+    "training_time_sec": 853.6,
+    "tokens_per_sec": 705.4,
+    "effective_max_steps": 49,
+    "dataset_version": "aila_pretrain_v2_bilingual",
+    "dataset_sha256": "99bb7470342c48bddf5b86519fa6326cba6cac3e16653e0587bc4231a43ae28c",
+    "language_mixture": {
+      "pt": 7121,
+      "en": 8789
+    },
+    "seed": 1337,
+    "context_length": 256,
+    "checkpoint_dir": "checkpoints_v2/50m_bilingual/tokens_600000",
+    "timestamp": "2026-08-31T15:58:27.717147+00:00",
+    "git_commit": "7454431e9d6716e98a5cfe33c40956a9f1a7c4f2"
+  }
+]

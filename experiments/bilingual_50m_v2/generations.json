@@ -1,0 +1,305 @@
+[
+  {
+    "checkpoint": "checkpoints_v2/50m_bilingual/tokens_300000/best.pt",
+    "generations": [
+      {
+        "lang": "en",
+        "prompt": "Once upon a time",
+        "generation": ".",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 1
+      },
+      {
+        "lang": "en",
+        "prompt": "The weather today is",
+        "generation": ", e e.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.3333,
+        "n_tokens": 3
+      },
+      {
+        "lang": "en",
+        "prompt": "My favorite thing about science is",
+        "generation": ".",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 1
+      },
+      {
+        "lang": "en",
+        "prompt": "She looked at the map and",
+        "generation": "to.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 1
+      },
+      {
+        "lang": "en",
+        "prompt": "The best way to learn is",
+        "generation": "a was the He.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.25,
+        "n_tokens": 4
+      },
+      {
+        "lang": "en",
+        "prompt": "A long time ago, in a small village,",
+        "generation": "lhe, e.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 2
+      },
+      {
+        "lang": "pt",
+        "prompt": "Era uma vez",
+        "generation": ".\n a, e,\n-lhe.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.25,
+        "n_tokens": 4
+      },
+      {
+        "lang": "pt",
+        "prompt": "O tempo hoje está",
+        "generation": ", e.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 2
+      },
+      {
+        "lang": "pt",
+        "prompt": "A minha coisa favorita sobre a ciência é",
+        "generation": ", e de.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.3333,
+        "n_tokens": 3
+      },
+      {
+        "lang": "pt",
+        "prompt": "Ela olhou para o mapa e",
+        "generation": "to, que.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 2
+      },
+      {
+        "lang": "pt",
+        "prompt": "A melhor maneira de aprender é",
+        "generation": ", e,\nc, e não.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.2,
+        "n_tokens": 5
+      },
+      {
+        "lang": "pt",
+        "prompt": "Há muito tempo, numa pequena aldeia,",
+        "generation": ", e.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 2
+      }
+    ]
+  },
+  {
+    "checkpoint": "checkpoints_v2/50m_bilingual/tokens_600000/best.pt",
+    "generations": [
+      {
+        "lang": "en",
+        "prompt": "Once upon a time",
+        "generation": ", \" They said, they was a little girl. She had a time there was a.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.125,
+        "n_tokens": 16
+      },
+      {
+        "lang": "en",
+        "prompt": "The weather today is",
+        "generation": ". He saw his and wanted to the and she had a time.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.1538,
+        "n_tokens": 13
+      },
+      {
+        "lang": "en",
+        "prompt": "My favorite thing about science is",
+        "generation": "a time, but \" He had a small and the the little. They saw a little girl on the to play.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.1429,
+        "n_tokens": 21
+      },
+      {
+        "lang": "en",
+        "prompt": "She looked at the map and",
+        "generation": "had a.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 2
+      },
+      {
+        "lang": "en",
+        "prompt": "The best way to learn is",
+        "generation": "that and saw it. He was very friends in the little girl said, her for his he was very big on day, \" They was a happy to make the park and had sad. One day",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0833,
+        "n_tokens": 36
+      },
+      {
+        "lang": "en",
+        "prompt": "A long time ago, in a small village,",
+        "generation": "the other.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 2
+      },
+      {
+        "lang": "pt",
+        "prompt": "Era uma vez",
+        "generation": "um me o\nm, e de\np o a sua a\na a\ne de _do não os uma\nque que se era eu\nd da seu de\nQue do",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.1333,
+        "n_tokens": 30
+      },
+      {
+        "lang": "pt",
+        "prompt": "O tempo hoje está",
+        "generation": ". A o\nos,\ne-se,\np\nm-me é e os um lhe\no, não em que\num o\na,\n\"A as a",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0909,
+        "n_tokens": 22
+      },
+      {
+        "lang": "pt",
+        "prompt": "A minha coisa favorita sobre a ciência é",
+        "generation": "m as e se os seu eu o\nD, e os um ella-me de não que, da sua\n\"d, que a\nque o por não lhe\nQue,",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0741,
+        "n_tokens": 27
+      },
+      {
+        "lang": "pt",
+        "prompt": "Ela olhou para o mapa e",
+        "generation": "e, que mais lhe o ella-se de um a\ns; que ao\num na\nque o\nQue.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.1765,
+        "n_tokens": 17
+      },
+      {
+        "lang": "pt",
+        "prompt": "A melhor maneira de aprender é",
+        "generation": "que, a\nf os\nde o o o\nd.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.3333,
+        "n_tokens": 9
+      },
+      {
+        "lang": "pt",
+        "prompt": "Há muito tempo, numa pequena aldeia,",
+        "generation": "a, mas, e o\nc\nme\nt lhe um minha não a um\ndo de seus eu em que a sua o os minha á não se os os ella.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.1,
+        "n_tokens": 30
+      }
+    ]
+  },
+  {
+    "checkpoint": "checkpoints_v2/50m_bilingual/tokens_1100000/best.pt",
+    "generations": [
+      {
+        "lang": "en",
+        "prompt": "Once upon a time",
+        "generation": ".",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 1
+      },
+      {
+        "lang": "en",
+        "prompt": "The weather today is",
+        "generation": "happy.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 1
+      },
+      {
+        "lang": "en",
+        "prompt": "My favorite thing about science is",
+        "generation": "not like it. He was so excited to the park and went to go and started to play.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.1667,
+        "n_tokens": 18
+      },
+      {
+        "lang": "en",
+        "prompt": "She looked at the map and",
+        "generation": "could know.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 2
+      },
+      {
+        "lang": "en",
+        "prompt": "The best way to learn is",
+        "generation": ".",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 1
+      },
+      {
+        "lang": "en",
+        "prompt": "A long time ago, in a small village,",
+        "generation": "there was very happy to go back.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.1429,
+        "n_tokens": 7
+      },
+      {
+        "lang": "pt",
+        "prompt": "Era uma vez",
+        "generation": ".",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0,
+        "n_tokens": 1
+      },
+      {
+        "lang": "pt",
+        "prompt": "O tempo hoje está",
+        "generation": "que não\nnão a sua casa, e o suas tempo. O olhos, que lhe uma\na-se os vida; mas as dia, e de mulher de olhos-lhe do\nD",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0714,
+        "n_tokens": 28
+      },
+      {
+        "lang": "pt",
+        "prompt": "A minha coisa favorita sobre a ciência é",
+        "generation": "fcar-lhe que se não era um fim. E o seu coração, que lhe\nque o _os o seu seu meu seus sua minha homem, e em que era o",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.1379,
+        "n_tokens": 29
+      },
+      {
+        "lang": "pt",
+        "prompt": "Ela olhou para o mapa e",
+        "generation": "a\nO mais em olhos do que ha se se elle, e de homem. O olhos\ne a vida, por uma seu seus seus seus minha minha minha pae, e\nque a sua",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.0909,
+        "n_tokens": 33
+      },
+      {
+        "lang": "pt",
+        "prompt": "A melhor maneira de aprender é",
+        "generation": "Ae, se lhe quem o que o amor; e o que não a\nmar, o seu seu espirito.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.2222,
+        "n_tokens": 18
+      },
+      {
+        "lang": "pt",
+        "prompt": "Há muito tempo, numa pequena aldeia,",
+        "generation": "e a morte.",
+        "repeat_ngram_fraction": 0.0,
+        "top_token_share": 0.3333,
+        "n_tokens": 3
+      }
+    ]
+  }
+]
