@@ -1,0 +1,32 @@
+# Base TrainingConfig for the 50M data-scaling sweep. The token budget is
+# supplied per-run by scripts/scaling_experiment.py (--token-budgets), which
+# also sets checkpoint_dir / tensorboard_dir / dataset_version per budget.
+# max_steps here is a high ceiling that never binds — the token budget does.
+# Frequent evals (every 50 steps ~= 0.6M tokens) so even small budgets get a
+# few validation points. All budgets stay under one epoch of the 17.4M-token
+# corpus, so there is no data repetition.
+train_bin: datasets/processed/pretrain_train.bin
+val_bin: datasets/processed/pretrain_val.bin
+
+max_lr: 6.0e-4
+min_lr: 6.0e-5
+warmup_steps: 50
+max_steps: 100000
+weight_decay: 0.1
+betas: [0.9, 0.95]
+grad_clip: 1.0
+grad_accum_steps: 6
+batch_size: 8
+
+eval_interval: 50
+eval_iters: 20
+log_interval: 25
+checkpoint_dir: checkpoints/50m_data_scaling/_base
+keep_last_n_checkpoints: 1
+early_stopping_patience: null
+
+device: cpu
+amp: false
+seed: 1337
+tensorboard_dir: runs/50m_data_scaling/_base
+num_workers: 2

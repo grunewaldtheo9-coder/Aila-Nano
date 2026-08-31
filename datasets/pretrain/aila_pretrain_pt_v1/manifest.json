@@ -1,0 +1,39 @@
+{
+  "version": "aila_pretrain_pt_v1",
+  "tokenizer_path": "tokenizer/artifacts/aila_nano.model",
+  "tokenizer_vocab_size": 8192,
+  "train_bin": "datasets/pretrain/aila_pretrain_pt_v1/train.bin",
+  "val_bin": "datasets/pretrain/aila_pretrain_pt_v1/val.bin",
+  "train_sha256": "a94c100c8ed465081c01985814d7eb31d2f8e5b2ac463085e0e12d2a6cd8f174",
+  "train_tokens": 632802,
+  "val_sha256": "2e970581940598ebfac3961752baaea7d6006fc9fcf00719e99b58bf3aed22ce",
+  "val_tokens": 34075,
+  "document_count": 2278,
+  "language_distribution": {
+    "pt": 2278
+  },
+  "token_distribution": {
+    "pt": 666877
+  },
+  "filter_config": {
+    "min_doc_chars": 200,
+    "clean_document": true,
+    "is_low_quality": true,
+    "langid_filter": true,
+    "exact_dedupe": true,
+    "near_dedupe_threshold": 0.8,
+    "target_ratios": null
+  },
+  "sources": [
+    {
+      "name": "Project Gutenberg — Machado de Assis & Eça de Queirós (PT)",
+      "license": "Public domain (Project Gutenberg License)",
+      "url": "https://www.gutenberg.org",
+      "provenance": "Fetched via build_pretrain_corpus.py; verify license before redistribution.",
+      "documents": 2278,
+      "tokens": 666877
+    }
+  ],
+  "created_at": "2026-08-31T00:50:34.749181+00:00",
+  "git_commit": "30327668929e089fc779eb1cc47eca8c377b7fce"
+}

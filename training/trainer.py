@@ -38,6 +38,12 @@ class TrainingConfig:
     min_lr: float = 3e-5
     warmup_steps: int = 200
     max_steps: int = 5000
+    # Optional token / epoch budgets. When set, they cap the run in
+    # addition to max_steps — the trainer trains for the *smallest* of the
+    # limits and never past a requested token budget. The LR cosine anneals
+    # over the resulting effective horizon. Both None => pure max_steps.
+    max_tokens: int | None = None
+    max_epochs: float | None = None
     weight_decay: float = 0.1
     betas: tuple[float, float] = (0.9, 0.95)
     grad_clip: float = 1.0
@@ -52,6 +58,10 @@ class TrainingConfig:
     keep_last_n_checkpoints: int = 3
     early_stopping_patience: int | None = 10  # in "eval_interval" units; None disables
 
+    # provenance: which dataset version produced this run (recorded in the
+    # checkpoint so a checkpoint identifies exactly the data it saw).
+    dataset_version: str | None = None
+
     # misc
     device: str = "auto"  # "auto" | "cpu" | "cuda"
     amp: bool = True
@@ -63,6 +73,27 @@ class TrainingConfig:
         if self.device != "auto":
             return self.device
         return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+def resolve_max_steps(
+    max_steps: int,
+    tokens_per_step: int,
+    corpus_tokens: int,
+    max_tokens: int | None = None,
+    max_epochs: float | None = None,
+) -> int:
+    """The effective step count: the *smallest* of the configured step cap
+    and any token/epoch budget, so a run never trains past the requested
+    budget. `corpus_tokens` is the number of unique tokens in the training
+    corpus (one epoch). Deterministic; used for both the loop bound and the
+    LR-cosine horizon."""
+    candidates = [max_steps]
+    if max_tokens is not None:
+        candidates.append(max(1, math.ceil(max_tokens / tokens_per_step)))
+    if max_epochs is not None:
+        epoch_tokens = max_epochs * corpus_tokens
+        candidates.append(max(1, math.ceil(epoch_tokens / tokens_per_step)))
+    return min(candidates)
 
 
 @dataclass
@@ -84,15 +115,23 @@ class Trainer:
         self.optimizer = model.configure_optimizer(
             weight_decay=cfg.weight_decay, learning_rate=cfg.max_lr, betas=cfg.betas
         )
+
+        self.train_ds = TokenBinDataset(cfg.train_bin, seq_len=model.cfg.max_seq_len)
+        self.val_ds = TokenBinDataset(cfg.val_bin, seq_len=model.cfg.max_seq_len)
+
+        # Effective horizon: honour token/epoch budgets, never train past the
+        # smallest requested limit. The cosine anneals over this same horizon.
+        self.tokens_per_step = cfg.batch_size * cfg.grad_accum_steps * model.cfg.max_seq_len
+        self.max_steps = resolve_max_steps(
+            cfg.max_steps, self.tokens_per_step, self.train_ds.num_tokens,
+            max_tokens=cfg.max_tokens, max_epochs=cfg.max_epochs,
+        )
         self.scheduler = CosineWarmupScheduler(
             max_lr=cfg.max_lr,
             min_lr=cfg.min_lr,
             warmup_steps=cfg.warmup_steps,
-            max_steps=cfg.max_steps,
+            max_steps=self.max_steps,
         )
-
-        self.train_ds = TokenBinDataset(cfg.train_bin, seq_len=model.cfg.max_seq_len)
-        self.val_ds = TokenBinDataset(cfg.val_bin, seq_len=model.cfg.max_seq_len)
         self.train_loader = DataLoader(
             self.train_ds,
             batch_size=cfg.batch_size,
@@ -109,6 +148,18 @@ class Trainer:
         self.scaler = torch.amp.GradScaler(
             enabled=self.amp_enabled and self.device.type == "cuda"
         )
+
+        # Reproducible dataset identity, recorded in every checkpoint so a
+        # checkpoint says exactly which corpus (and version) produced it.
+        from training.dataset import corpus_fingerprint
+
+        fp = corpus_fingerprint(cfg.train_bin)
+        self.dataset_meta = {
+            "dataset_version": cfg.dataset_version,
+            "train_sha256": fp["sha256"],
+            "train_tokens": fp["num_tokens"],
+            "val_tokens": self.val_ds.num_tokens,
+        }
 
         Path(cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
         self.writer = SummaryWriter(log_dir=cfg.tensorboard_dir)
@@ -135,8 +186,16 @@ class Trainer:
     def _save(self, tag: str | None = None) -> None:
         name = tag or f"step_{self.state.step:07d}"
         path = str(Path(self.cfg.checkpoint_dir) / f"{name}.pt")
+        extra = {
+            **self.dataset_meta,
+            "tokens_seen": self.state.step * self.tokens_per_step,
+            "tokens_per_step": self.tokens_per_step,
+            "effective_max_steps": self.max_steps,
+            "seed": self.cfg.seed,
+        }
         save_checkpoint(
-            path, self.model, self.optimizer, self.state.step, self.state.best_val_loss
+            path, self.model, self.optimizer, self.state.step, self.state.best_val_loss,
+            extra=extra,
         )
         self._prune_checkpoints()
 
@@ -184,7 +243,7 @@ class Trainer:
         t0 = time.time()
         running_loss = 0.0
 
-        while self.state.step < self.cfg.max_steps:
+        while self.state.step < self.max_steps:
             lr = self.scheduler.set_lr(self.optimizer, self.state.step)
             self.optimizer.zero_grad(set_to_none=True)
 
@@ -242,7 +301,7 @@ class Trainer:
                 logger.info(
                     "step %d/%d | loss %.4f | lr %.2e | grad_norm %.3f | %.0f tok/s | seen %.2fM",
                     self.state.step,
-                    self.cfg.max_steps,
+                    self.max_steps,
                     avg_loss,
                     lr,
                     grad_norm,
@@ -257,7 +316,7 @@ class Trainer:
                 running_loss = 0.0
                 t0 = time.time()
 
-            if self.state.step % self.cfg.eval_interval == 0 or self.state.step == self.cfg.max_steps:
+            if self.state.step % self.cfg.eval_interval == 0 or self.state.step == self.max_steps:
                 val_loss = self.evaluate()
                 perplexity = math.exp(min(val_loss, 20))
                 logger.info(

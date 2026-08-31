@@ -69,3 +69,28 @@ class TokenBinDataset(Dataset):
 def token_bin_stats(bin_path: str) -> dict:
     mm = np.memmap(bin_path, dtype=TOKEN_DTYPE, mode="r")
     return {"num_tokens": int(len(mm)), "path": bin_path}
+
+
+def corpus_fingerprint(bin_path: str, chunk_bytes: int = 8 << 20) -> dict:
+    """A reproducible identity for a tokenized corpus: a content hash plus
+    the token count, computed by streaming the file so it never loads the
+    whole corpus into RAM. Two `.bin` files with the same tokens produce
+    the same `sha256`, so a checkpoint can record exactly which dataset it
+    was trained on (spec: dataset versioning / reproducibility)."""
+    import hashlib
+
+    h = hashlib.sha256()
+    size = 0
+    with open(bin_path, "rb") as f:
+        while True:
+            block = f.read(chunk_bytes)
+            if not block:
+                break
+            h.update(block)
+            size += len(block)
+    return {
+        "sha256": h.hexdigest(),
+        "num_tokens": size // np.dtype(TOKEN_DTYPE).itemsize,
+        "bytes": size,
+        "path": str(bin_path),
+    }

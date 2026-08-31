@@ -1,0 +1,39 @@
+{
+  "version": "aila_pretrain_v1_tinystories",
+  "tokenizer_path": "tokenizer/artifacts/aila_nano.model",
+  "tokenizer_vocab_size": 8192,
+  "train_bin": "datasets/processed/pretrain_train.bin",
+  "val_bin": "datasets/processed/pretrain_val.bin",
+  "train_sha256": "ec4012eecde9b1e1acc0aeb8a4cbc6c17563408b7989d26337b7ce7af6fb0ea4",
+  "train_tokens": 17410541,
+  "val_sha256": "173fe594168843eedd76fabe7cffa334d1fab53a3dcb1e08b95a00c408e0e974",
+  "val_tokens": 175864,
+  "document_count": 2000,
+  "language_distribution": {
+    "en": 1992,
+    "pt": 1,
+    "unknown": 7
+  },
+  "token_distribution": {
+    "en_tokens": null,
+    "note": "TinyStories is English; per-language token split not separately measured for this single-source corpus."
+  },
+  "filter_config": {
+    "clean_document": true,
+    "is_low_quality": true,
+    "exact_dedupe": true,
+    "near_dedupe": "0.8 jaccard (nano-scale)"
+  },
+  "sources": [
+    {
+      "name": "roneneldan/TinyStories",
+      "license": "CDLA-Sharing-1.0",
+      "url": "https://huggingface.co/datasets/roneneldan/TinyStories",
+      "provenance": "Downloaded previously into datasets/raw/tinystories.txt; license verified as CDLA-Sharing-1.0 (permits ML training).",
+      "documents": null,
+      "tokens": null
+    }
+  ],
+  "created_at": "2026-08-31T00:47:16.461707+00:00",
+  "git_commit": "30327668929e089fc779eb1cc47eca8c377b7fce"
+}

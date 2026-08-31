@@ -1,0 +1,113 @@
+{
+  "vocab_size": 8192,
+  "english": {
+    "chars": 200000,
+    "words": 38963,
+    "tokens": 49723,
+    "tokens_per_char": 0.2486,
+    "tokens_per_word": 1.2762,
+    "chars_per_token": 4.0223
+  },
+  "portuguese": {
+    "chars": 1192,
+    "words": 207,
+    "tokens": 643,
+    "tokens_per_char": 0.5394,
+    "tokens_per_word": 3.1063,
+    "chars_per_token": 1.8538
+  },
+  "portuguese_word_fragmentation": {
+    "n_words": 18,
+    "split_words": 18,
+    "split_fraction": 1.0,
+    "examples": [
+      {
+        "word": "obrigado",
+        "pieces": [
+          "o",
+          "br",
+          "ig",
+          "ado"
+        ],
+        "n": 4
+      },
+      {
+        "word": "obrigada",
+        "pieces": [
+          "o",
+          "br",
+          "ig",
+          "ad",
+          "a"
+        ],
+        "n": 5
+      },
+      {
+        "word": "você",
+        "pieces": [
+          "vo",
+          "c",
+          "�",
+          "�"
+        ],
+        "n": 4
+      },
+      {
+        "word": "não",
+        "pieces": [
+          "n",
+          "�",
+          "�",
+          "o"
+        ],
+        "n": 4
+      },
+      {
+        "word": "coração",
+        "pieces": [
+          "c",
+          "ora",
+          "�",
+          "�",
+          "�",
+          "�",
+          "o"
+        ],
+        "n": 7
+      },
+      {
+        "word": "informação",
+        "pieces": [
+          "inf",
+          "or",
+          "ma",
+          "�",
+          "�",
+          "�",
+          "�",
+          "o"
+        ],
+        "n": 8
+      },
+      {
+        "word": "cidade",
+        "pieces": [
+          "c",
+          "id",
+          "ade"
+        ],
+        "n": 3
+      },
+      {
+        "word": "trabalho",
+        "pieces": [
+          "tra",
+          "b",
+          "al",
+          "ho"
+        ],
+        "n": 4
+      }
+    ]
+  }
+}
