@@ -1,0 +1,26 @@
+{
+  "model_parameters": 55587328,
+  "training_tokens_budget": 300000,
+  "tokens_seen": 307200,
+  "unique_tokens": 1205462,
+  "epochs": 0.2548,
+  "tokens_per_parameter": 0.0055,
+  "final_train_loss": 6.8449,
+  "best_val_loss": 6.9476,
+  "final_val_loss": 6.9385,
+  "best_val_perplexity": 1040.6495,
+  "training_time_sec": 468.8,
+  "tokens_per_sec": 655.2,
+  "effective_max_steps": 25,
+  "dataset_version": "aila_pretrain_v2_bilingual",
+  "dataset_sha256": "99bb7470342c48bddf5b86519fa6326cba6cac3e16653e0587bc4231a43ae28c",
+  "language_mixture": {
+    "pt": 7121,
+    "en": 8789
+  },
+  "seed": 1337,
+  "context_length": 256,
+  "checkpoint_dir": "checkpoints_v2/50m_bilingual/tokens_300000",
+  "timestamp": "2026-08-31T15:43:50.277127+00:00",
+  "git_commit": "80e9df8aa8b31cb344d32aeba8fc678b43c728e8"
+}
