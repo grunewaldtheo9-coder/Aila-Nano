@@ -1,0 +1,27 @@
+{
+  "model_parameters": 51393024,
+  "training_tokens_budget": 2000000,
+  "tokens_seen": 2002944,
+  "unique_tokens": 17410541,
+  "epochs": 0.115,
+  "tokens_per_parameter": 0.039,
+  "final_train_loss": 3.1168,
+  "best_val_loss": 3.2552,
+  "final_val_loss": 3.346,
+  "best_val_perplexity": 25.9241,
+  "training_time_sec": 2806.6,
+  "tokens_per_sec": 713.6,
+  "effective_max_steps": 163,
+  "dataset_version": "aila_pretrain_v1_tinystories",
+  "dataset_sha256": "ec4012eecde9b1e1acc0aeb8a4cbc6c17563408b7989d26337b7ce7af6fb0ea4",
+  "language_mixture": {
+    "en": 1992,
+    "pt": 1,
+    "unknown": 7
+  },
+  "seed": 1337,
+  "context_length": 256,
+  "checkpoint_dir": "checkpoints/50m_data_scaling/tokens_2000000",
+  "timestamp": "2026-08-31T02:11:46.506961+00:00",
+  "git_commit": "66f6c060957b43df014a1ccfa0dd646bceb06d80"
+}

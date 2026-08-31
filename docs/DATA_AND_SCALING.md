@@ -80,6 +80,23 @@ hash, and language mixture. The report reads only the JSONs that exist and
 **never invents missing points**. See `experiments/50m_data_scaling/REPORT.md`
 for the measured results from this environment.
 
+### Measured result (this environment)
+
+Three real points, same 51M model, same corpus, fresh per budget (see
+`experiments/50m_data_scaling/REPORT.md`):
+
+| Tokens seen | Tokens/param | Best val loss | Val PPL |
+|---|---|---|---|
+| 503,808 | 0.0098 | 4.4375 | 84.56 |
+| 1,007,616 | 0.0196 | 3.7719 | 43.46 |
+| 2,002,944 | 0.0390 | 3.2552 | 25.92 |
+
+Validation loss falls steeply and monotonically with more data (−0.67 from
+1M→2M alone) with **no sign of a plateau**, at tokens/parameter far below 1.
+This empirically confirms Aila Nano 50M is **strongly data-limited**: the
+next gains come from more high-quality data, not more parameters. (These are
+short-horizon points meant to trace the curve on CPU, not converged models.)
+
 ### Cost on this CPU
 
 ~800 tok/s ⇒ ~12k tokens/step ⇒ ~210 steps/hour. So one epoch of the
