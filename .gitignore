@@ -31,6 +31,13 @@ tensorboard/
 tokenizer/artifacts/*.model
 tokenizer/artifacts/*.vocab
 !tokenizer/artifacts/.gitkeep
+# Candidate tokenizers are regenerable experiments (train_tokenizer_candidates.py);
+# ignore their binaries. The chosen v2 bilingual tokenizer under
+# tokenizer/artifacts/v2_bilingual/ IS committed (small, and the deliverable).
+tokenizer/artifacts/candidates/**/*.model
+tokenizer/artifacts/candidates/**/*.vocab
+# Derived tokenizer-training text corpus (regenerate with build_tokenizer_corpus.py).
+datasets/tokenizer_corpus/
 
 # --- Datasets (raw/processed data is fetched, not committed) ---
 datasets/raw/

@@ -1,0 +1,49 @@
+{
+  "checkpoint": "checkpoints/50m/finetune/best.pt",
+  "tokenizer": "tokenizer/artifacts/aila_nano.model",
+  "tokenizer_vocab_size": 8192,
+  "checkpoint_step": 1120,
+  "checkpoint_dataset": null,
+  "english_perplexity": {
+    "loss": 4.8622,
+    "perplexity": 129.3079,
+    "tokens": 152,
+    "path": "evaluation/data/eval_en.txt"
+  },
+  "portuguese_perplexity": {
+    "loss": 7.8631,
+    "perplexity": 2599.6685,
+    "tokens": 343,
+    "path": "evaluation/data/eval_pt.txt"
+  },
+  "generations": [
+    {
+      "prompt": "Once upon a time",
+      "generation": ", there was a girl named Lily. She had a small house in her room that she loved to read. One day, she went to the park with her mom and saw a boy's toy",
+      "repeat_ngram_fraction": 0.0,
+      "top_token_share": 0.0857,
+      "n_tokens": 35
+    },
+    {
+      "prompt": "The weather today",
+      "generation": "is a sunny day, and the sun is over there.",
+      "repeat_ngram_fraction": 0.0,
+      "top_token_share": 0.2,
+      "n_tokens": 10
+    },
+    {
+      "prompt": "Era uma vez",
+      "generation": ".",
+      "repeat_ngram_fraction": 0.0,
+      "top_token_share": 0.0,
+      "n_tokens": 1
+    },
+    {
+      "prompt": "A cidade de",
+      "generation": "from the ground. The lion was so happy and grateful to have a new friend.",
+      "repeat_ngram_fraction": 0.0,
+      "top_token_share": 0.0667,
+      "n_tokens": 15
+    }
+  ]
+}

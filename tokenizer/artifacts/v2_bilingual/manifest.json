@@ -1,0 +1,49 @@
+{
+  "version": "aila_nano_v2_bilingual",
+  "supersedes_for_new_checkpoints_only": "tokenizer/artifacts/aila_nano.model (v1, 8192, English-only corpus) remains the production tokenizer for all existing 20M/50M checkpoints and is NOT replaced.",
+  "model_path": "tokenizer/artifacts/v2_bilingual/aila_nano_v2_bilingual.model",
+  "vocab_size": 16384,
+  "model_type": "bpe",
+  "character_coverage": 1.0,
+  "model_sha256": "3603343763188a3d2099923d4fffdc9081d20e1de9a7a37d596599df3a18fb3a",
+  "training_corpus": "datasets/tokenizer_corpus/tokenizer_train.txt (~50% PT / 50% EN by bytes)",
+  "languages": [
+    "en",
+    "pt"
+  ],
+  "sources": [
+    {
+      "name": "TinyStories (EN)",
+      "license": "CDLA-Sharing-1.0",
+      "url": "https://huggingface.co/datasets/roneneldan/TinyStories"
+    },
+    {
+      "name": "Project Gutenberg PT literature (Machado de Assis, Alencar, Azevedo, Camoes, ...)",
+      "license": "Public domain (Project Gutenberg License)",
+      "url": "https://www.gutenberg.org",
+      "note": "8 works, langid-verified Portuguese; classic/literary register (PT-BR + Os Lusiadas PT-PT)."
+    }
+  ],
+  "measured_vs_production": {
+    "pt_tokens_per_word": {
+      "v1_aila_nano": 2.8495,
+      "v2_bilingual_16384": 1.4139
+    },
+    "pt_byte_fallback_rate": {
+      "v1_aila_nano": 0.09576,
+      "v2_bilingual_16384": 5e-05
+    },
+    "pt_accents_in_vocab_fraction": {
+      "v1_aila_nano": 0.0909,
+      "v2_bilingual_16384": 1.0
+    },
+    "en_tokens_per_word": {
+      "v1_aila_nano": 1.1769,
+      "v2_bilingual_16384": 1.1904
+    },
+    "benchmark": "experiments/tokenizer_benchmark.json (held-out EN+PT)"
+  },
+  "compatibility": "vocab_size=16384 != 8192, so this tokenizer is for FUTURE v2 checkpoints only. Existing checkpoints (vocab 8192) stay with aila_nano.model; validate_checkpoint_compatibility rejects a mismatch with a clear error.",
+  "created_at": "2026-08-31T11:08:38.873274+00:00",
+  "git_commit": "bd189977a8e98e47441688c947545a419012a132"
+}

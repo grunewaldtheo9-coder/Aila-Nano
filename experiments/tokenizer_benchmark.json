@@ -1,0 +1,732 @@
+{
+  "results": [
+    {
+      "model_path": "tokenizer/artifacts/aila_nano.model",
+      "vocab_size": 8192,
+      "english": {
+        "lines": 1086,
+        "chars": 223415,
+        "words": 44460,
+        "tokens": 52325,
+        "tokens_per_word": 1.1769,
+        "tokens_per_char": 0.2342,
+        "tokens_per_sentence": 48.1814,
+        "chars_per_token": 4.2698,
+        "byte_fallback_rate": 0.00159,
+        "distinct_ids_used": 3471
+      },
+      "portuguese": {
+        "lines": 605,
+        "chars": 218930,
+        "words": 38762,
+        "tokens": 110453,
+        "tokens_per_word": 2.8495,
+        "tokens_per_char": 0.5045,
+        "tokens_per_sentence": 182.5669,
+        "chars_per_token": 1.9821,
+        "byte_fallback_rate": 0.09576,
+        "distinct_ids_used": 1554
+      },
+      "pt_word_fragmentation": {
+        "n_words": 15,
+        "split_words": 15,
+        "split_fraction": 1.0,
+        "avg_pieces_per_word": 5.9333,
+        "examples": [
+          {
+            "word": "informação",
+            "n_pieces": 8,
+            "pieces": [
+              "▁inf",
+              "or",
+              "ma",
+              "<0xC3>",
+              "<0xA7>",
+              "<0xC3>",
+              "<0xA3>",
+              "o"
+            ]
+          },
+          {
+            "word": "educação",
+            "n_pieces": 8,
+            "pieces": [
+              "▁ed",
+              "uc",
+              "a",
+              "<0xC3>",
+              "<0xA7>",
+              "<0xC3>",
+              "<0xA3>",
+              "o"
+            ]
+          },
+          {
+            "word": "coração",
+            "n_pieces": 7,
+            "pieces": [
+              "▁c",
+              "ora",
+              "<0xC3>",
+              "<0xA7>",
+              "<0xC3>",
+              "<0xA3>",
+              "o"
+            ]
+          },
+          {
+            "word": "português",
+            "n_pieces": 6,
+            "pieces": [
+              "▁port",
+              "ug",
+              "u",
+              "<0xC3>",
+              "<0xAA>",
+              "s"
+            ]
+          },
+          {
+            "word": "programação",
+            "n_pieces": 9,
+            "pieces": [
+              "▁pro",
+              "g",
+              "r",
+              "ama",
+              "<0xC3>",
+              "<0xA7>",
+              "<0xC3>",
+              "<0xA3>",
+              "o"
+            ]
+          },
+          {
+            "word": "inteligência",
+            "n_pieces": 8,
+            "pieces": [
+              "▁int",
+              "el",
+              "ig",
+              "<0xC3>",
+              "<0xAA>",
+              "n",
+              "c",
+              "ia"
+            ]
+          },
+          {
+            "word": "computador",
+            "n_pieces": 3,
+            "pieces": [
+              "▁comput",
+              "ad",
+              "or"
+            ]
+          },
+          {
+            "word": "desenvolvimento",
+            "n_pieces": 7,
+            "pieces": [
+              "▁des",
+              "en",
+              "v",
+              "ol",
+              "v",
+              "iment",
+              "o"
+            ]
+          },
+          {
+            "word": "conversação",
+            "n_pieces": 7,
+            "pieces": [
+              "▁convers",
+              "a",
+              "<0xC3>",
+              "<0xA7>",
+              "<0xC3>",
+              "<0xA3>",
+              "o"
+            ]
+          },
+          {
+            "word": "aprendizagem",
+            "n_pieces": 6,
+            "pieces": [
+              "▁ap",
+              "re",
+              "nd",
+              "iz",
+              "ag",
+              "em"
+            ]
+          },
+          {
+            "word": "obrigado",
+            "n_pieces": 4,
+            "pieces": [
+              "▁o",
+              "br",
+              "ig",
+              "ado"
+            ]
+          },
+          {
+            "word": "você",
+            "n_pieces": 4,
+            "pieces": [
+              "▁vo",
+              "c",
+              "<0xC3>",
+              "<0xAA>"
+            ]
+          }
+        ]
+      },
+      "accent_handling": {
+        "accented_chars": [
+          "ã",
+          "õ",
+          "á",
+          "é",
+          "í",
+          "ó",
+          "ú",
+          "â",
+          "ê",
+          "ô",
+          "ç"
+        ],
+        "in_vocab": [
+          "â"
+        ],
+        "via_byte_fallback": [
+          "ã",
+          "õ",
+          "á",
+          "é",
+          "í",
+          "ó",
+          "ú",
+          "ê",
+          "ô",
+          "ç"
+        ],
+        "in_vocab_fraction": 0.0909
+      },
+      "vocab_utilization_pt": 0.1897,
+      "vocab_utilization_en": 0.4237,
+      "_score": 7.3547
+    },
+    {
+      "model_path": "tokenizer/artifacts/candidates/bilingual_12288/bilingual_12288.model",
+      "vocab_size": 12288,
+      "english": {
+        "lines": 1086,
+        "chars": 223415,
+        "words": 44460,
+        "tokens": 53577,
+        "tokens_per_word": 1.2051,
+        "tokens_per_char": 0.2398,
+        "tokens_per_sentence": 49.3343,
+        "chars_per_token": 4.17,
+        "byte_fallback_rate": 0.0,
+        "distinct_ids_used": 3236
+      },
+      "portuguese": {
+        "lines": 605,
+        "chars": 218930,
+        "words": 38762,
+        "tokens": 56947,
+        "tokens_per_word": 1.4691,
+        "tokens_per_char": 0.2601,
+        "tokens_per_sentence": 94.1273,
+        "chars_per_token": 3.8445,
+        "byte_fallback_rate": 5e-05,
+        "distinct_ids_used": 6584
+      },
+      "pt_word_fragmentation": {
+        "n_words": 15,
+        "split_words": 7,
+        "split_fraction": 0.4667,
+        "avg_pieces_per_word": 2.0,
+        "examples": [
+          {
+            "word": "informação",
+            "n_pieces": 3,
+            "pieces": [
+              "▁inf",
+              "or",
+              "mação"
+            ]
+          },
+          {
+            "word": "educação",
+            "n_pieces": 1,
+            "pieces": [
+              "▁educação"
+            ]
+          },
+          {
+            "word": "coração",
+            "n_pieces": 1,
+            "pieces": [
+              "▁coração"
+            ]
+          },
+          {
+            "word": "português",
+            "n_pieces": 3,
+            "pieces": [
+              "▁port",
+              "ug",
+              "uês"
+            ]
+          },
+          {
+            "word": "programação",
+            "n_pieces": 3,
+            "pieces": [
+              "▁pro",
+              "gra",
+              "mação"
+            ]
+          },
+          {
+            "word": "inteligência",
+            "n_pieces": 4,
+            "pieces": [
+              "▁int",
+              "el",
+              "ig",
+              "ência"
+            ]
+          },
+          {
+            "word": "computador",
+            "n_pieces": 2,
+            "pieces": [
+              "▁comput",
+              "ador"
+            ]
+          },
+          {
+            "word": "desenvolvimento",
+            "n_pieces": 3,
+            "pieces": [
+              "▁desenvol",
+              "v",
+              "imento"
+            ]
+          },
+          {
+            "word": "conversação",
+            "n_pieces": 1,
+            "pieces": [
+              "▁conversação"
+            ]
+          },
+          {
+            "word": "aprendizagem",
+            "n_pieces": 4,
+            "pieces": [
+              "▁apre",
+              "nd",
+              "iz",
+              "agem"
+            ]
+          },
+          {
+            "word": "obrigado",
+            "n_pieces": 1,
+            "pieces": [
+              "▁obrigado"
+            ]
+          },
+          {
+            "word": "você",
+            "n_pieces": 1,
+            "pieces": [
+              "▁você"
+            ]
+          }
+        ]
+      },
+      "accent_handling": {
+        "accented_chars": [
+          "ã",
+          "õ",
+          "á",
+          "é",
+          "í",
+          "ó",
+          "ú",
+          "â",
+          "ê",
+          "ô",
+          "ç"
+        ],
+        "in_vocab": [
+          "ã",
+          "õ",
+          "á",
+          "é",
+          "í",
+          "ó",
+          "ú",
+          "â",
+          "ê",
+          "ô",
+          "ç"
+        ],
+        "via_byte_fallback": [],
+        "in_vocab_fraction": 1.0
+      },
+      "vocab_utilization_pt": 0.5358,
+      "vocab_utilization_en": 0.2633,
+      "_score": 4.1436
+    },
+    {
+      "model_path": "tokenizer/artifacts/candidates/bilingual_16384/bilingual_16384.model",
+      "vocab_size": 16384,
+      "english": {
+        "lines": 1086,
+        "chars": 223415,
+        "words": 44460,
+        "tokens": 52924,
+        "tokens_per_word": 1.1904,
+        "tokens_per_char": 0.2369,
+        "tokens_per_sentence": 48.733,
+        "chars_per_token": 4.2214,
+        "byte_fallback_rate": 0.0,
+        "distinct_ids_used": 3391
+      },
+      "portuguese": {
+        "lines": 605,
+        "chars": 218930,
+        "words": 38762,
+        "tokens": 54807,
+        "tokens_per_word": 1.4139,
+        "tokens_per_char": 0.2503,
+        "tokens_per_sentence": 90.5901,
+        "chars_per_token": 3.9946,
+        "byte_fallback_rate": 5e-05,
+        "distinct_ids_used": 7672
+      },
+      "pt_word_fragmentation": {
+        "n_words": 15,
+        "split_words": 7,
+        "split_fraction": 0.4667,
+        "avg_pieces_per_word": 2.0,
+        "examples": [
+          {
+            "word": "informação",
+            "n_pieces": 3,
+            "pieces": [
+              "▁inf",
+              "or",
+              "mação"
+            ]
+          },
+          {
+            "word": "educação",
+            "n_pieces": 1,
+            "pieces": [
+              "▁educação"
+            ]
+          },
+          {
+            "word": "coração",
+            "n_pieces": 1,
+            "pieces": [
+              "▁coração"
+            ]
+          },
+          {
+            "word": "português",
+            "n_pieces": 3,
+            "pieces": [
+              "▁port",
+              "ug",
+              "uês"
+            ]
+          },
+          {
+            "word": "programação",
+            "n_pieces": 3,
+            "pieces": [
+              "▁pro",
+              "gra",
+              "mação"
+            ]
+          },
+          {
+            "word": "inteligência",
+            "n_pieces": 4,
+            "pieces": [
+              "▁int",
+              "el",
+              "ig",
+              "ência"
+            ]
+          },
+          {
+            "word": "computador",
+            "n_pieces": 2,
+            "pieces": [
+              "▁comput",
+              "ador"
+            ]
+          },
+          {
+            "word": "desenvolvimento",
+            "n_pieces": 3,
+            "pieces": [
+              "▁desenvol",
+              "v",
+              "imento"
+            ]
+          },
+          {
+            "word": "conversação",
+            "n_pieces": 1,
+            "pieces": [
+              "▁conversação"
+            ]
+          },
+          {
+            "word": "aprendizagem",
+            "n_pieces": 4,
+            "pieces": [
+              "▁apre",
+              "nd",
+              "iz",
+              "agem"
+            ]
+          },
+          {
+            "word": "obrigado",
+            "n_pieces": 1,
+            "pieces": [
+              "▁obrigado"
+            ]
+          },
+          {
+            "word": "você",
+            "n_pieces": 1,
+            "pieces": [
+              "▁você"
+            ]
+          }
+        ]
+      },
+      "accent_handling": {
+        "accented_chars": [
+          "ã",
+          "õ",
+          "á",
+          "é",
+          "í",
+          "ó",
+          "ú",
+          "â",
+          "ê",
+          "ô",
+          "ç"
+        ],
+        "in_vocab": [
+          "ã",
+          "õ",
+          "á",
+          "é",
+          "í",
+          "ó",
+          "ú",
+          "â",
+          "ê",
+          "ô",
+          "ç"
+        ],
+        "via_byte_fallback": [],
+        "in_vocab_fraction": 1.0
+      },
+      "vocab_utilization_pt": 0.4683,
+      "vocab_utilization_en": 0.207,
+      "_score": 4.0185
+    },
+    {
+      "model_path": "tokenizer/artifacts/candidates/bilingual_8192/bilingual_8192.model",
+      "vocab_size": 8192,
+      "english": {
+        "lines": 1086,
+        "chars": 223415,
+        "words": 44460,
+        "tokens": 55039,
+        "tokens_per_word": 1.2379,
+        "tokens_per_char": 0.2464,
+        "tokens_per_sentence": 50.6805,
+        "chars_per_token": 4.0592,
+        "byte_fallback_rate": 0.0,
+        "distinct_ids_used": 2896
+      },
+      "portuguese": {
+        "lines": 605,
+        "chars": 218930,
+        "words": 38762,
+        "tokens": 60697,
+        "tokens_per_word": 1.5659,
+        "tokens_per_char": 0.2772,
+        "tokens_per_sentence": 100.3256,
+        "chars_per_token": 3.6069,
+        "byte_fallback_rate": 5e-05,
+        "distinct_ids_used": 4966
+      },
+      "pt_word_fragmentation": {
+        "n_words": 15,
+        "split_words": 8,
+        "split_fraction": 0.5333,
+        "avg_pieces_per_word": 2.2667,
+        "examples": [
+          {
+            "word": "informação",
+            "n_pieces": 3,
+            "pieces": [
+              "▁inf",
+              "or",
+              "mação"
+            ]
+          },
+          {
+            "word": "educação",
+            "n_pieces": 3,
+            "pieces": [
+              "▁ed",
+              "uca",
+              "ção"
+            ]
+          },
+          {
+            "word": "coração",
+            "n_pieces": 1,
+            "pieces": [
+              "▁coração"
+            ]
+          },
+          {
+            "word": "português",
+            "n_pieces": 4,
+            "pieces": [
+              "▁port",
+              "ug",
+              "u",
+              "ês"
+            ]
+          },
+          {
+            "word": "programação",
+            "n_pieces": 3,
+            "pieces": [
+              "▁pro",
+              "gra",
+              "mação"
+            ]
+          },
+          {
+            "word": "inteligência",
+            "n_pieces": 4,
+            "pieces": [
+              "▁int",
+              "el",
+              "ig",
+              "ência"
+            ]
+          },
+          {
+            "word": "computador",
+            "n_pieces": 2,
+            "pieces": [
+              "▁comput",
+              "ador"
+            ]
+          },
+          {
+            "word": "desenvolvimento",
+            "n_pieces": 4,
+            "pieces": [
+              "▁desen",
+              "vol",
+              "v",
+              "imento"
+            ]
+          },
+          {
+            "word": "conversação",
+            "n_pieces": 1,
+            "pieces": [
+              "▁conversação"
+            ]
+          },
+          {
+            "word": "aprendizagem",
+            "n_pieces": 4,
+            "pieces": [
+              "▁apre",
+              "nd",
+              "iz",
+              "agem"
+            ]
+          },
+          {
+            "word": "obrigado",
+            "n_pieces": 1,
+            "pieces": [
+              "▁obrigado"
+            ]
+          },
+          {
+            "word": "você",
+            "n_pieces": 1,
+            "pieces": [
+              "▁você"
+            ]
+          }
+        ]
+      },
+      "accent_handling": {
+        "accented_chars": [
+          "ã",
+          "õ",
+          "á",
+          "é",
+          "í",
+          "ó",
+          "ú",
+          "â",
+          "ê",
+          "ô",
+          "ç"
+        ],
+        "in_vocab": [
+          "ã",
+          "õ",
+          "á",
+          "é",
+          "í",
+          "ó",
+          "ú",
+          "â",
+          "ê",
+          "ô",
+          "ç"
+        ],
+        "via_byte_fallback": [],
+        "in_vocab_fraction": 1.0
+      },
+      "vocab_utilization_pt": 0.6062,
+      "vocab_utilization_en": 0.3535,
+      "_score": 4.37
+    }
+  ],
+  "recommended": "tokenizer/artifacts/candidates/bilingual_16384/bilingual_16384.model"
+}

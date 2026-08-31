@@ -1,0 +1,12 @@
+{
+  "name": "bilingual_8192",
+  "vocab_size": 8192,
+  "character_coverage": 1.0,
+  "model_type": "bpe",
+  "training_corpus": "datasets/tokenizer_corpus/tokenizer_train.txt",
+  "training_corpus_sha256": "4af4f66796c01525d5887355342851580090627c3929c06d43549066a4028101",
+  "model_path": "tokenizer/artifacts/candidates/bilingual_8192/bilingual_8192.model",
+  "created_at": "2026-08-31T11:06:35.252542+00:00",
+  "git_commit": "bd189977a8e98e47441688c947545a419012a132",
+  "note": "Bilingual EN+PT candidate. Does NOT replace tokenizer/artifacts/aila_nano.model."
+}
