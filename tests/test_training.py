@@ -192,7 +192,13 @@ def test_trainer_stops_safely_on_non_finite_loss(tmp_path, tiny_config):
         return next(trainer.model.parameters()).sum() * float("nan")
 
     trainer._forward_loss = nan_loss
+    before = [p.detach().clone() for p in trainer.model.parameters()]
     state = trainer.train()
 
     assert state.step == 0  # broke on the first (bad) step, never advanced
     assert not (Path(cfg.checkpoint_dir) / "best.pt").exists()
+    # The non-finite gradient must NOT have been applied to the weights: the
+    # guard runs before the optimizer step, so params are byte-for-byte the
+    # same (no NaNs poisoning the model in memory either).
+    for p_before, p_after in zip(before, trainer.model.parameters()):
+        assert torch.equal(p_before, p_after)

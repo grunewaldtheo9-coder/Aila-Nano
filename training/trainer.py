@@ -267,24 +267,25 @@ class Trainer:
                 self.scaler.unscale_(self.optimizer)
             grad_norm = nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.grad_clip)
 
+            # Stability guard (spec §11): never let a non-finite loss or
+            # gradient poison training. Checked BEFORE the optimizer step so a
+            # non-finite gradient is never applied to the weights; we stop
+            # safely, leaving the last healthy rolling checkpoint intact to
+            # resume from with a lower LR / stronger grad clipping.
+            if not math.isfinite(step_loss) or not torch.isfinite(grad_norm):
+                logger.error(
+                    "Non-finite value at step %d (loss=%s, grad_norm=%s) — stopping "
+                    "before the optimizer step applies it. Resume from the last rolling "
+                    "checkpoint in %s with a lower LR / stronger grad clipping.",
+                    self.state.step + 1, step_loss, float(grad_norm), self.cfg.checkpoint_dir,
+                )
+                break
+
             if self.scaler.is_enabled():
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
             else:
                 self.optimizer.step()
-
-            # Stability guard (spec §11): never let a non-finite loss or
-            # gradient silently poison training. Stop safely so the last
-            # healthy rolling checkpoint stays intact and can be resumed
-            # from with corrected settings, rather than saving a NaN "best".
-            if not math.isfinite(step_loss) or not torch.isfinite(grad_norm):
-                logger.error(
-                    "Non-finite value at step %d (loss=%s, grad_norm=%s) — stopping "
-                    "before it corrupts the checkpoint. Resume from the last rolling "
-                    "checkpoint in %s with a lower LR / stronger grad clipping.",
-                    self.state.step + 1, step_loss, float(grad_norm), self.cfg.checkpoint_dir,
-                )
-                break
 
             running_loss += step_loss
             self.state.step += 1
