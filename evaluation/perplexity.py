@@ -37,13 +37,21 @@ def text_perplexity(model, tokenizer, text: str, device="cpu", max_seq_len: int 
         ids = tokenizer.encode(line, add_bos=True, add_eos=True)
         if len(ids) < 2:
             continue
-        ids = ids[:seq_cap]
-        x = torch.tensor([ids[:-1]], dtype=torch.long, device=device)
-        y = torch.tensor([ids[1:]], dtype=torch.long, device=device)
-        _, loss = model(x, targets=y)
-        n = y.numel()
-        total_loss += loss.item() * n   # sum of NLL (nats) over predicted tokens
-        total_tokens += n
+        # Score EVERY transition, even when the line exceeds the context
+        # window, by walking it in non-overlapping seq_cap-sized chunks.
+        # (Truncating to seq_cap while still counting the whole line's
+        # characters would understate BPC — a real bug for long lines.)
+        step = max(1, seq_cap - 1)
+        for start in range(0, len(ids) - 1, step):
+            window = ids[start : start + seq_cap]
+            if len(window) < 2:
+                break
+            x = torch.tensor([window[:-1]], dtype=torch.long, device=device)
+            y = torch.tensor([window[1:]], dtype=torch.long, device=device)
+            _, loss = model(x, targets=y)
+            n = y.numel()
+            total_loss += loss.item() * n   # sum of NLL (nats) over predicted tokens
+            total_tokens += n
         total_chars += len(line)
     if total_tokens == 0:
         return {"loss": None, "perplexity": None, "tokens": 0, "chars": 0, "bits_per_char": None}

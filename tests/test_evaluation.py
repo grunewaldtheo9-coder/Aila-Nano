@@ -50,6 +50,21 @@ def test_perplexity_is_deterministic(tmp_path):
     assert a == b
 
 
+def test_long_line_is_fully_scored_not_truncated(tmp_path):
+    # Regression: a line longer than the context window must have EVERY
+    # transition scored (chunked), not truncated to seq_cap while still
+    # counting the whole line's characters — otherwise BPC is understated.
+    tok = _tiny_tok(tmp_path)
+    cfg = tiny_debug(); cfg.vocab_size = tok.vocab_size; cfg.max_seq_len = 16
+    model = AilaNanoGPT(cfg)
+    long_line = " ".join(["the cat sat"] * 30)  # >> 16 tokens
+    ids = tok.encode(long_line, add_bos=True, add_eos=True)
+    assert len(ids) > cfg.max_seq_len  # precondition: would truncate
+    r = text_perplexity(model, tok, long_line)
+    assert r["tokens"] == len(ids) - 1  # all transitions scored, none dropped
+    assert r["chars"] == len(long_line)
+
+
 def test_empty_text_reports_zero_tokens(tmp_path):
     tok = _tiny_tok(tmp_path)
     cfg = tiny_debug(); cfg.vocab_size = tok.vocab_size

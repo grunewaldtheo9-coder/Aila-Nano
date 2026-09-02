@@ -148,13 +148,16 @@ def main():
     stats["near_duplicates_removed"] = after_exact - stats["after_dedup"]
 
     # Optional per-language down-sampling toward target ratios (never repeat).
+    # Carry each document's language in a PARALLEL list (not an id()-keyed
+    # dict — object ids are unsafe as keys: they can collide for equal
+    # strings and be reused after GC).
     ratios = _parse_ratios(args.target_ratios)
-    lang_of = {id(d): langid.identify(d) for d in docs}
+    langs = [langid.identify(d) for d in docs]
     if ratios:
         rng = np.random.default_rng(args.seed)
         by_lang: dict[str, list[str]] = {}
-        for d in docs:
-            by_lang.setdefault(lang_of[id(d)], []).append(d)
+        for d, lang in zip(docs, langs):
+            by_lang.setdefault(lang, []).append(d)
         total = len(docs)
         kept: list[str] = []
         for lang, group in by_lang.items():
@@ -168,6 +171,7 @@ def main():
                 group = [group[i] for i in sorted(idx)]
             kept.extend(group)
         docs = kept
+        langs = [langid.identify(d) for d in docs]  # re-derive for the kept set
 
     if not docs:
         raise SystemExit("No documents survived filtering.")
@@ -177,10 +181,9 @@ def main():
     all_ids: list[int] = []
     tokens_by_lang: dict[str, int] = {}
     doc_langs: list[str] = []
-    for d in docs:
+    for d, lang in zip(docs, langs):
         ids = tok.encode(d, add_bos=True, add_eos=True)
         all_ids.extend(ids)
-        lang = lang_of.get(id(d), langid.identify(d))
         tokens_by_lang[lang] = tokens_by_lang.get(lang, 0) + len(ids)
         doc_langs.append(lang)
 
