@@ -6,13 +6,24 @@
 usable and genuinely rough in places — please report problems to
 mailailacompanysolutions@gmail.com, or type `/support` in the chat.*
 
-Aila Nano is a decoder-only transformer. Two architecture sizes exist —
-`nano_10m` at ~10.9M parameters (10,877,184) and the shipped `nano_20m`
-at ~19.8M parameters (19,796,160), both measured programmatically via
-[`scripts/count_params.py`](scripts/count_params.py) — designed to learn
-language, answer questions, generate and continue text, be fine-tuned on
-new data, and run entirely locally — CPU or GPU, no external AI API
-required for the model itself.
+Aila Nano is a decoder-only transformer. Three architecture sizes exist —
+`nano_10m` (~10.9M), the shipped `nano_20m` (~19.8M, 19,796,160), and
+`nano_50m` (~51.4M, 51,393,024) — all measured programmatically via
+[`scripts/count_params.py`](scripts/count_params.py). Every size is
+designed to learn language, answer questions, generate and continue text,
+be fine-tuned on new data, and run entirely locally — CPU or GPU, no
+external AI API required for the model itself.
+
+The **shipped, default model is the trained ~20M checkpoint.** The 50M
+architecture has also been trained from scratch on CPU (data-limited, honest
+results in [docs/AILA_NANO_50M.md](docs/AILA_NANO_50M.md) and
+[docs/DATA_AND_SCALING.md](docs/DATA_AND_SCALING.md)). A separate, versioned
+**bilingual English + Portuguese tokenizer** (16,384-vocab) roughly halves
+Portuguese token fragmentation and eliminates accented-character
+byte-fallback — measured in [docs/TOKENIZER.md](docs/TOKENIZER.md), with a
+first bilingual 50M training run in
+[docs/BILINGUAL_V2.md](docs/BILINGUAL_V2.md). The production 8,192-vocab
+tokenizer and all existing checkpoints are preserved, unchanged.
 
 Around the model sits an external intelligence layer:
 long-term user memory, a global knowledge base with validation and
@@ -68,6 +79,7 @@ same engine with no changes to the model, memory, or agents. See
 | [`memory/`](memory/) | Conversation, long-term, and semantic memory with relevance ranking |
 | [`agents/`](agents/) | Four assistant personas sharing one model (General/Programming/Research/Writing) |
 | [`engine/`](engine/) | The interface-independent AI core — loads everything above, exposes `chat()`/`chat_stream()` |
+| [`evaluation/`](evaluation/) | Per-language (EN/PT) evaluation harness: perplexity, bits-per-character, generation checks |
 | [`knowledge/`](knowledge/) | Global knowledge base: validated facts, candidates, web cache, dedup/conflict handling |
 | [`webresearch/`](webresearch/) | Serper search client, source ranking, sanitization, research pipeline |
 | [`tools/`](tools/) | Tool router + calculator; extension point for future capabilities |
@@ -189,6 +201,10 @@ Full walkthroughs: [docs/INSTALL.md](docs/INSTALL.md) ·
 - [docs/API.md](docs/API.md) — `AilaEngine` Python API reference (for building new interfaces)
 - [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — every config file and env var
 - [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — measured `nano_10m` vs `nano_20m` comparison, honestly interpreted
+- [docs/AILA_NANO_50M.md](docs/AILA_NANO_50M.md) — the 50M architecture, its CPU training run, and honest results
+- [docs/DATA_AND_SCALING.md](docs/DATA_AND_SCALING.md) — token-budget training + the measured data-scaling curve
+- [docs/TOKENIZER.md](docs/TOKENIZER.md) — the bilingual EN+PT tokenizer: why, how it was chosen, measured gains
+- [docs/BILINGUAL_V2.md](docs/BILINGUAL_V2.md) — the first bilingual 50M training run and per-language (BPC) evaluation
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — real failure modes and how to fix them
 - [docs/GPU_TRAINING.md](docs/GPU_TRAINING.md) — training on a rented cloud GPU (costs, setup, configs)
 - [datasets/README.md](datasets/README.md) — dataset sources and licenses
