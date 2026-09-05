@@ -84,10 +84,16 @@ class CausalSelfAttention(nn.Module):
             k = k.repeat_interleave(self.n_groups, dim=1)
             v = v.repeat_interleave(self.n_groups, dim=1)
 
-        # is_causal only makes sense with no cache (full self-attention over
-        # a fresh sequence); with a KV cache the query is a single new step
-        # attending to *all* cached keys, which is unconditionally allowed.
-        is_causal = kv_cache is None and attn_mask is None
+        # Causal masking. `is_causal` is correct whenever we process more
+        # than one query position (training, and the generation *prefill*
+        # over the whole prompt): PyTorch aligns the causal mask to the
+        # bottom-right, so with a KV cache each new token attends to all
+        # cached tokens plus earlier new ones. For a single decode step
+        # (seq_len == 1) there is nothing to mask — the lone query attends to
+        # every cached key — so is_causal must be False there. Keying this on
+        # `kv_cache is None` was a bug: it made the multi-token prefill
+        # non-causal (prompt tokens attended to future prompt tokens).
+        is_causal = attn_mask is None and seq_len > 1
         out = F.scaled_dot_product_attention(
             q,
             k,

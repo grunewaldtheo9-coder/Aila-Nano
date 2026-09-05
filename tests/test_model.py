@@ -62,6 +62,21 @@ def test_kv_cache_matches_full_forward(tiny_model, tiny_config):
     assert torch.allclose(full_logits, cached_logits, atol=1e-4)
 
 
+def test_prefill_with_cache_is_causal(tiny_model, tiny_config):
+    # Regression: generation prefills the WHOLE prompt in one forward pass
+    # with a fresh KV cache (model(prompt, kv_caches=...)). That multi-token
+    # pass must stay causal — earlier prompt tokens must not attend to later
+    # ones. (The old `is_causal = kv_cache is None` made prefill non-causal;
+    # the single-token-at-a-time test above never caught it.)
+    torch.manual_seed(0)
+    prompt = torch.randint(0, tiny_config.vocab_size, (1, 10))
+    tiny_model.eval()
+    with torch.no_grad():
+        full_logits, _ = tiny_model(prompt)                              # causal
+        prefill_logits, _ = tiny_model(prompt, kv_caches=tiny_model.new_kv_caches())
+    assert torch.allclose(full_logits, prefill_logits, atol=1e-4)
+
+
 def test_generate_respects_max_new_tokens(tiny_model, tiny_config):
     prompt = torch.randint(0, tiny_config.vocab_size, (1, 4))
     out = generate(tiny_model, prompt, max_new_tokens=10, eos_id=None)
